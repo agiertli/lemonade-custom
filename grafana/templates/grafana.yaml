@@ -6,6 +6,8 @@ metadata:
   annotations:
     kubernetes.io/service-account.name: grafana-sa
     argocd.argoproj.io/sync-wave: "5"
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "-5"
 type: kubernetes.io/service-account-token
 ---
 apiVersion: v1
@@ -273,7 +275,7 @@ spec:
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "79a73517-235d-43ef-9907-e01112e36b8b"
+            "uid": "${DS_PROMETHEUS}"
           },
           "fieldConfig": {
             "defaults": {
@@ -418,7 +420,7 @@ spec:
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "79a73517-235d-43ef-9907-e01112e36b8b"
+            "uid": "${DS_PROMETHEUS}"
           },
           "fieldConfig": {
             "defaults": {
@@ -539,7 +541,7 @@ spec:
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "79a73517-235d-43ef-9907-e01112e36b8b"
+            "uid": "${DS_PROMETHEUS}"
           },
           "fieldConfig": {
             "defaults": {
@@ -660,7 +662,7 @@ spec:
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "79a73517-235d-43ef-9907-e01112e36b8b"
+            "uid": "${DS_PROMETHEUS}"
           },
           "fieldConfig": {
             "defaults": {
@@ -781,7 +783,7 @@ spec:
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "79a73517-235d-43ef-9907-e01112e36b8b"
+            "uid": "${DS_PROMETHEUS}"
           },
           "fieldConfig": {
             "defaults": {

@@ -90,11 +90,12 @@ You need to have cluster admin privileges to create guardrails orchestrator obje
 
 Before deploying, ensure you have:
 - Access to a Red Hat OpenShift cluster with OpenShift AI installed
+- Cluster admin privileges (required for enabling user workload monitoring)
 - `oc` CLI tool installed and configured
 - `helm` CLI tool installed
-- Sufficient resources available in your cluster
+- Sufficient resources available in your cluster (3 GPU nodes recommended)
 
-### Installation
+### Quick Installation (Recommended)
 
 1. Clone the repository:
 ```bash
@@ -102,15 +103,52 @@ git clone https://github.com/rh-ai-quickstart/lemonade-stand-assistant.git
 cd lemonade-stand-assistant
 ```
 
-2. Create a new OpenShift project:
+2. Run the automated installation script:
 ```bash
+# Basic installation (CPU-only detectors)
+./scripts/install.sh
+
+# OR with GPU-accelerated detectors (requires 3 GPUs total)
+ENABLE_GPU_DETECTORS=true ./scripts/install.sh
+```
+
+The script will:
+- Create the namespace
+- Enable user workload monitoring for metrics
+- Install the Grafana operator
+- Deploy the application with all guardrails
+- Install Grafana with pre-configured dashboards
+
+### Manual Installation (Advanced)
+
+If you prefer step-by-step installation:
+
+1. Clone and create namespace:
+```bash
+git clone https://github.com/rh-ai-quickstart/lemonade-stand-assistant.git
+cd lemonade-stand-assistant
 PROJECT="lemonade-stand-assistant"
 oc new-project ${PROJECT}
 ```
 
-3. Install using Helm:
+2. Configure cluster-level settings:
+```bash
+./scripts/post-install-setup.sh
+```
+
+3. Install the application:
 ```bash
 helm install lemonade-stand-assistant ./chart --namespace ${PROJECT}
+
+# OR with GPU detectors:
+helm install lemonade-stand-assistant ./chart --namespace ${PROJECT} \
+  --set detectors.hap.useGpu=true \
+  --set detectors.promptInjection.useGpu=true
+```
+
+4. Install Grafana:
+```bash
+helm install lemonade-grafana ./grafana --namespace ${PROJECT} --set operator=false
 ```
 
 ### Configuration Options
@@ -151,17 +189,32 @@ helm install lemonade-stand-assistant ./chart --namespace ${PROJECT} \
 Once deployed, access the Lemonade Stand Assistant UI. You can find the route with:
 
 ```bash
-echo https://$(oc get route/lemonade-stand-assistant -n ${PROJECT} --template='{{.spec.host}}')
+echo https://$(oc get route/lemonade-stand -n ${PROJECT} --template='{{.spec.host}}')
 ```
 
-Open the URL in your browser and start asking questions about lemonade and other fruits!
+Access Grafana dashboards:
+
+```bash
+echo https://$(oc get route/grafana-route -n ${PROJECT} --template='{{.spec.host}}')
+```
+
+Open the application URL in your browser and start asking questions about lemons!
 
 ### Uninstall
 
 To remove the deployment:
 
 ```bash
-helm uninstall lemonade-stand-assistant --namespace ${PROJECT}
+# Remove both Helm releases
+helm uninstall lemonade-stand-assistant lemonade-grafana --namespace ${PROJECT}
+
+# Optional: Remove the namespace
+oc delete project ${PROJECT}
+```
+
+**Note:** User workload monitoring configuration will persist at the cluster level. To disable it, delete the ConfigMap:
+```bash
+oc delete configmap cluster-monitoring-config -n openshift-monitoring
 ```
 
 ## Technical details
