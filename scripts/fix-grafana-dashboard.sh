@@ -63,7 +63,19 @@ oc wait --for=condition=ready pod -l app.kubernetes.io/name=grafana-operator -n 
 
 # Wait for dashboard to be synced
 echo "Waiting for dashboard synchronization..."
-sleep 15
+sleep 20
+
+# Verify dashboard exists in Grafana
+DASHBOARD_EXISTS=$(oc exec -n $NAMESPACE deploy/grafana-deployment -c grafana -- wget -qO- "http://localhost:3000/api/search?type=dash-db" 2>/dev/null | grep -c "34d7e0c2-afeb-4939-bbf9-c9b0ad33595c" || echo "0")
+
+if [ "$DASHBOARD_EXISTS" -eq "0" ]; then
+    echo "⚠ Dashboard not visible in Grafana, forcing operator restart..."
+    oc delete pod -l app.kubernetes.io/name=grafana-operator -n $NAMESPACE >/dev/null 2>&1
+    sleep 5
+    oc wait --for=condition=ready pod -l app.kubernetes.io/name=grafana-operator -n $NAMESPACE --timeout=60s >/dev/null 2>&1
+    sleep 20
+    echo "✓ Operator restarted"
+fi
 
 # Restart Grafana pod to pick up changes
 echo "Restarting Grafana pod..."
