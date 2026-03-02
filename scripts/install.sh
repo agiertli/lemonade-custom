@@ -84,7 +84,7 @@ echo "---------------------------------------------"
 # Wait a bit for operator to be fully ready
 sleep 10
 
-helm install lemonade-grafana ./grafana --namespace $NAMESPACE --set operator=false
+helm upgrade --install lemonade-grafana ./grafana --namespace $NAMESPACE --set operator=false
 
 echo "✓ Grafana installed"
 
