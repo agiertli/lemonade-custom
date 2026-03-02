@@ -1,0 +1,34 @@
+---
+# Production configuration
+# Override default values for production deployments
+
+# Replica configuration - higher replicas for production
+# Note: For InferenceServices, this sets BOTH min and max replicas
+# to ensure pods are pre-warmed and ready for demos
+# Tuned for 7 GPU nodes with g6.4xlarge (1 GPU, 64GB RAM per node)
+replicas:
+  llama: 3
+  hap: 2
+  promptInjection: 2
+
+# Detector configuration - GPU enabled for production
+detectors:
+  hap:
+    useGpu: true
+    resources:
+      requests:
+        cpu: '1'
+        memory: 4Gi
+      limits:
+        cpu: '2'
+        memory: 8Gi
+
+  promptInjection:
+    useGpu: true
+    resources:
+      requests:
+        cpu: '4'
+        memory: 16Gi
+      limits:
+        cpu: '8'
+        memory: 24Gi

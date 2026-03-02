@@ -64,8 +64,8 @@ metadata:
 spec:
   predictor:
     automountServiceAccountToken: false
-    maxReplicas: 1
-    minReplicas: 0
+    maxReplicas: {{ .Values.replicas.llama }}
+    minReplicas: {{ .Values.replicas.llama }}
     model:
       args:
         - '--enable-auto-tool-choice'

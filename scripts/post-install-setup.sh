@@ -5,6 +5,7 @@ set -e
 # This script handles cluster-level configurations that cannot be done via Helm
 
 NAMESPACE="${NAMESPACE:-lemonade-stand-assistant}"
+GPU_REPLICAS="${GPU_REPLICAS:-3}"
 TIMEOUT=300
 
 echo "========================================="
@@ -32,9 +33,66 @@ wait_for() {
     echo " Done!"
 }
 
-# Step 1: Enable User Workload Monitoring
+# Step 1: Scale GPU MachineSets
 echo ""
-echo "Step 1: Enabling User Workload Monitoring..."
+echo "Step 1: Ensuring GPU Worker Nodes are Available..."
+echo "---------------------------------------------"
+
+GPU_DESIRED_REPLICAS=$GPU_REPLICAS
+GPU_INSTANCE_TYPE="${GPU_INSTANCE_TYPE:-g5.4xlarge}"
+
+echo "Target GPU instance type: $GPU_INSTANCE_TYPE"
+
+# Try to find GPU machinesets matching the instance type, fallback to any GPU machineset
+GPU_MACHINESETS=$(oc get machineset -n openshift-machine-api -o json | \
+  jq -r --arg instance_type "$GPU_INSTANCE_TYPE" \
+  '.items[] | select(.metadata.name | contains("gpu")) | select(.spec.template.spec.providerSpec.value.instanceType == $instance_type) | .metadata.name')
+
+if [ -z "$GPU_MACHINESETS" ]; then
+  echo "No machineset found with instance type $GPU_INSTANCE_TYPE, using any GPU machineset..."
+  GPU_MACHINESETS=$(oc get machineset -n openshift-machine-api -o json | jq -r '.items[] | select(.metadata.name | contains("gpu")) | .metadata.name')
+fi
+
+if [ -z "$GPU_MACHINESETS" ]; then
+    echo "WARNING: No GPU machinesets found. Skipping GPU node scaling."
+    echo "The demo requires GPU nodes. Please ensure GPU nodes are available manually."
+else
+    for MACHINESET in $GPU_MACHINESETS; do
+        CURRENT_REPLICAS=$(oc get machineset $MACHINESET -n openshift-machine-api -o jsonpath='{.spec.replicas}')
+        echo "Found GPU machineset: $MACHINESET (current replicas: $CURRENT_REPLICAS)"
+
+        if [ "$CURRENT_REPLICAS" -lt "$GPU_DESIRED_REPLICAS" ]; then
+            echo "Scaling $MACHINESET from $CURRENT_REPLICAS to $GPU_DESIRED_REPLICAS replicas..."
+            oc scale machineset $MACHINESET -n openshift-machine-api --replicas=$GPU_DESIRED_REPLICAS
+            echo "✓ Machineset scaled"
+        else
+            echo "✓ Machineset already has $CURRENT_REPLICAS replicas (>= $GPU_DESIRED_REPLICAS)"
+        fi
+    done
+
+    # Wait for GPU nodes to be ready
+    echo ""
+    echo "Waiting for GPU nodes to be ready..."
+    EXPECTED_GPU_NODES=$GPU_DESIRED_REPLICAS
+
+    wait_for "GPU nodes to be ready" \
+        "[ \$(oc get nodes -l nvidia.com/gpu.present=true --no-headers 2>/dev/null | wc -l) -ge $EXPECTED_GPU_NODES ]" \
+        600
+
+    # Verify GPU allocatable resources
+    echo "Verifying GPU resources..."
+    GPU_COUNT=$(oc get nodes -o json | jq '[.items[] | select(.status.allocatable."nvidia.com/gpu" != null) | .status.allocatable."nvidia.com/gpu" | tonumber] | add')
+    echo "✓ Total allocatable GPUs in cluster: $GPU_COUNT"
+
+    if [ "$GPU_COUNT" -lt "$GPU_DESIRED_REPLICAS" ]; then
+        echo "WARNING: Expected at least $GPU_DESIRED_REPLICAS GPUs, but found $GPU_COUNT"
+        echo "The demo may not have sufficient GPU resources."
+    fi
+fi
+
+# Step 2: Enable User Workload Monitoring
+echo ""
+echo "Step 2: Enabling User Workload Monitoring..."
 echo "---------------------------------------------"
 
 if oc get configmap cluster-monitoring-config -n openshift-monitoring >/dev/null 2>&1; then
@@ -60,9 +118,60 @@ EOF
     echo "✓ User workload monitoring enabled successfully"
 fi
 
-# Step 2: Install Grafana Operator (Phase 1)
+# Step 3: Enable TrustyAI in DataScienceCluster
 echo ""
-echo "Step 2: Installing Grafana Operator..."
+echo "Step 3: Enabling TrustyAI in DataScienceCluster..."
+echo "---------------------------------------------"
+
+# Find the DataScienceCluster (usually named 'default-dsc' or similar)
+DSC_NAME=$(oc get datasciencecluster -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
+
+if [ -z "$DSC_NAME" ]; then
+    echo "ERROR: No DataScienceCluster found. Is Red Hat OpenShift AI installed?"
+    echo "Please install Red Hat OpenShift AI first."
+    exit 1
+fi
+
+echo "Found DataScienceCluster: $DSC_NAME"
+
+# Check if TrustyAI is already enabled
+TRUSTYAI_STATUS=$(oc get datasciencecluster $DSC_NAME -o jsonpath='{.spec.components.trustyai.managementState}' 2>/dev/null || echo "")
+
+if [ "$TRUSTYAI_STATUS" = "Managed" ]; then
+    echo "✓ TrustyAI is already enabled in DataScienceCluster"
+else
+    echo "Enabling TrustyAI component..."
+    oc patch datasciencecluster $DSC_NAME --type='json' -p='[
+        {
+            "op": "add",
+            "path": "/spec/components/trustyai",
+            "value": {
+                "managementState": "Managed"
+            }
+        }
+    ]' 2>/dev/null || \
+    oc patch datasciencecluster $DSC_NAME --type='merge' -p='{"spec":{"components":{"trustyai":{"managementState":"Managed"}}}}'
+
+    echo "✓ TrustyAI component enabled"
+fi
+
+# Wait for TrustyAI operator to be ready
+echo "Waiting for TrustyAI operator to deploy..."
+wait_for "TrustyAI operator deployment" \
+    "oc get deployment trustyai-service-operator-controller-manager -n redhat-ods-applications" \
+    $TIMEOUT
+
+# Wait for GuardrailsOrchestrator CRD to be available
+echo "Waiting for GuardrailsOrchestrator CRD..."
+wait_for "GuardrailsOrchestrator CRD" \
+    "oc get crd guardrailsorchestrators.trustyai.opendatahub.io" \
+    $TIMEOUT
+
+echo "✓ TrustyAI is ready and GuardrailsOrchestrator CRD is available"
+
+# Step 4: Install Grafana Operator (Phase 1)
+echo ""
+echo "Step 4: Installing Grafana Operator..."
 echo "---------------------------------------------"
 
 if oc get csv -n $NAMESPACE | grep -q "grafana-operator.*Succeeded"; then
@@ -107,9 +216,9 @@ EOF
     echo "✓ Grafana Operator installed successfully"
 fi
 
-# Step 3: Wait for Grafana CRDs to be available
+# Step 5: Wait for Grafana CRDs to be available
 echo ""
-echo "Step 3: Verifying Grafana CRDs..."
+echo "Step 5: Verifying Grafana CRDs..."
 echo "---------------------------------------------"
 
 wait_for "Grafana CRD" \
@@ -126,9 +235,9 @@ wait_for "GrafanaDatasource CRD" \
 
 echo "✓ All Grafana CRDs are available"
 
-# Step 4: Verify ServiceMonitors are being scraped
+# Step 6: Verify ServiceMonitors are being scraped
 echo ""
-echo "Step 4: Verifying Metrics Collection..."
+echo "Step 6: Verifying Metrics Collection..."
 echo "---------------------------------------------"
 
 if oc get servicemonitor lemonade-stand -n $NAMESPACE >/dev/null 2>&1; then

@@ -1,10 +1,16 @@
 ---
+# Replica configuration
+replicas:
+  llama: 1
+  hap: 1
+  promptInjection: 1
+
 # Detector configuration
 # Configure GPU usage and resources for each detector
 detectors:
   # IBM HAP Detector (Granite Guardian)
   hap:
-    useGpu: false
+    useGpu: true
     resources:
       requests:
         cpu: '1'
@@ -15,12 +21,12 @@ detectors:
 
   # Prompt Injection Detector (DeBERTa v3)
   promptInjection:
-    useGpu: false
+    useGpu: true
     resources:
       requests:
-        cpu: '4'
-        memory: 16Gi
+        cpu: '2'
+        memory: 8Gi
       limits:
-        cpu: '8'
-        memory: 24Gi
+        cpu: '4'
+        memory: 12Gi
 

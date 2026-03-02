@@ -1,14 +1,6 @@
 ---
-kind: Secret
-apiVersion: v1
-metadata:
-  name: {{ .Values.grafana.serviceAccount.name }}-token
-  annotations:
-    kubernetes.io/service-account.name: grafana-sa
-    argocd.argoproj.io/sync-wave: "5"
-    helm.sh/hook: pre-install,pre-upgrade
-    helm.sh/hook-weight: "-5"
-type: kubernetes.io/service-account-token
+# Service account token is created in post-install-setup.sh
+# to avoid Helm hook timing issues
 ---
 apiVersion: v1
 data:
@@ -210,6 +202,7 @@ spec:
         timeInterval: {{ .Values.datasource.prometheus.timeInterval }}
         tlsSkipVerify: true
       name: Prometheus
+      uid: Prometheus
       secureJsonData:
         httpHeaderValue1: "Bearer ${token}"
       type: prometheus
@@ -275,7 +268,7 @@ spec:
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "Prometheus"
           },
           "fieldConfig": {
             "defaults": {
@@ -420,7 +413,7 @@ spec:
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "Prometheus"
           },
           "fieldConfig": {
             "defaults": {
@@ -526,7 +519,7 @@ spec:
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "7c53ed74-cc4f-4c5e-92d9-b7db51929506"
+                "uid": "Prometheus"
               },
               "editorMode": "code",
               "expr": "sum(guardrail_requests_total)",
@@ -541,7 +534,7 @@ spec:
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "Prometheus"
           },
           "fieldConfig": {
             "defaults": {
@@ -647,7 +640,7 @@ spec:
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "7c53ed74-cc4f-4c5e-92d9-b7db51929506"
+                "uid": "Prometheus"
               },
               "editorMode": "code",
               "expr": "sum(guardrail_detections_by_direction{direction=\"input\"})",
@@ -662,7 +655,7 @@ spec:
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "Prometheus"
           },
           "fieldConfig": {
             "defaults": {
@@ -768,7 +761,7 @@ spec:
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "7c53ed74-cc4f-4c5e-92d9-b7db51929506"
+                "uid": "Prometheus"
               },
               "editorMode": "code",
               "expr": "sum(guardrail_detections_by_direction{direction=\"output\"})",
@@ -783,7 +776,7 @@ spec:
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "Prometheus"
           },
           "fieldConfig": {
             "defaults": {
@@ -889,7 +882,7 @@ spec:
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "7c53ed74-cc4f-4c5e-92d9-b7db51929506"
+                "uid": "Prometheus"
               },
               "editorMode": "code",
               "expr": "sum(guardrail_requests_total) - sum(guardrail_detections_total)",

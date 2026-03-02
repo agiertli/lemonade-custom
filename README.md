@@ -90,10 +90,15 @@ You need to have cluster admin privileges to create guardrails orchestrator obje
 
 Before deploying, ensure you have:
 - Access to a Red Hat OpenShift cluster with OpenShift AI installed
-- Cluster admin privileges (required for enabling user workload monitoring)
+- Cluster admin privileges (required for enabling user workload monitoring and TrustyAI)
 - `oc` CLI tool installed and configured
 - `helm` CLI tool installed
-- Sufficient resources available in your cluster (3 GPU nodes recommended)
+- GPU machineset configured in your cluster (the script will scale it to 3 replicas)
+- Sufficient resources available in your cluster (3 GPU nodes required for production demos)
+
+**Important:**
+- The installation script will automatically scale GPU machinesets to 3 replicas and wait for nodes to be ready
+- The script will automatically enable the TrustyAI component in the DataScienceCluster CR (required for GuardrailsOrchestrator CRD)
 
 ### Quick Installation (Recommended)
 
@@ -186,7 +191,24 @@ helm install lemonade-stand-assistant ./chart --namespace ${PROJECT} \
 
 ### Validating the deployment
 
-Once deployed, access the Lemonade Stand Assistant UI. You can find the route with:
+Run the automated validation script to verify all components are working:
+
+```bash
+./scripts/validate-installation.sh
+```
+
+This will check:
+- GPU nodes and resources (2 checks)
+- TrustyAI component setup (3 checks)
+- Application pods status (6 checks)
+- InferenceServices readiness (3 checks)
+- Grafana configuration (7 checks)
+- Monitoring setup (3 checks)
+- Routes accessibility (2 checks)
+
+**Total: 26 automated validation checks**
+
+Once validated, access the Lemonade Stand Assistant UI:
 
 ```bash
 echo https://$(oc get route/lemonade-stand -n ${PROJECT} --template='{{.spec.host}}')

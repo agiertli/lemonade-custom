@@ -54,8 +54,8 @@ metadata:
 spec:
   predictor:
     automountServiceAccountToken: false
-    maxReplicas: 1
-    minReplicas: 1
+    maxReplicas: {{ .Values.replicas.promptInjection }}
+    minReplicas: {{ .Values.replicas.promptInjection }}
     model:
       modelFormat:
         name: guardrails-detector-huggingface
