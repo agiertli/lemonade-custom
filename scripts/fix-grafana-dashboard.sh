@@ -46,12 +46,26 @@ DATASOURCE_UID=$(oc get grafanadatasource prometheus-grafanadatasource -n $NAMES
 
 if [ "$DATASOURCE_UID" != "Prometheus" ]; then
     echo "⚠ Datasource UID missing or incorrect, fixing..."
+    # Try to add the uid field (works if it doesn't exist)
     oc patch grafanadatasource prometheus-grafanadatasource -n $NAMESPACE --type='json' \
       -p='[{"op": "add", "path": "/spec/datasource/uid", "value": "Prometheus"}]' >/dev/null 2>&1
+
+    # If add failed because field exists, replace it instead
+    if [ $? -ne 0 ]; then
+        oc patch grafanadatasource prometheus-grafanadatasource -n $NAMESPACE --type='json' \
+          -p='[{"op": "replace", "path": "/spec/datasource/uid", "value": "Prometheus"}]' >/dev/null 2>&1
+    fi
     echo "✓ Datasource UID set to 'Prometheus'"
 else
     echo "✓ Datasource UID is correct"
 fi
+
+# Force datasource reconciliation to update Grafana
+oc patch grafanadatasource prometheus-grafanadatasource -n $NAMESPACE --type='json' \
+  -p='[{"op": "replace", "path": "/spec/datasource/editable", "value": false}]' >/dev/null 2>&1
+sleep 2
+oc patch grafanadatasource prometheus-grafanadatasource -n $NAMESPACE --type='json' \
+  -p='[{"op": "replace", "path": "/spec/datasource/editable", "value": true}]' >/dev/null 2>&1
 
 # Restart Grafana operator to ensure fresh reconciliation
 echo "Restarting Grafana operator for clean reconciliation..."
@@ -81,5 +95,20 @@ fi
 echo "Restarting Grafana pod..."
 oc delete pod -l app=grafana -n $NAMESPACE >/dev/null 2>&1
 oc wait --for=condition=ready pod -l app=grafana -n $NAMESPACE --timeout=120s >/dev/null 2>&1
+
+# Force operator to re-sync dashboard and datasource to the new Grafana pod
+echo "Forcing dashboard re-sync to new Grafana instance..."
+oc annotate grafanadashboard guardrails-dashboard -n $NAMESPACE force-resync="$(date +%s)" --overwrite >/dev/null 2>&1
+oc annotate grafanadatasource prometheus-grafanadatasource -n $NAMESPACE force-resync="$(date +%s)" --overwrite >/dev/null 2>&1
+oc annotate grafanafolder lemonade-stand-folder -n $NAMESPACE force-resync="$(date +%s)" --overwrite >/dev/null 2>&1
+sleep 10
+
+# Verify dashboard is visible in the new Grafana instance
+DASHBOARD_SYNCED=$(oc exec -n $NAMESPACE deploy/grafana-deployment -c grafana -- curl -s 'http://localhost:3000/api/search?type=dash-db' 2>/dev/null | grep -c "34d7e0c2" || echo "0")
+if [ "$DASHBOARD_SYNCED" -eq "0" ]; then
+    echo "⚠ Dashboard not yet visible, retrying re-sync..."
+    oc annotate grafanadashboard guardrails-dashboard -n $NAMESPACE force-resync="$(date +%s)" --overwrite >/dev/null 2>&1
+    sleep 15
+fi
 
 echo "✓ Grafana dashboard configuration validated and fixed"

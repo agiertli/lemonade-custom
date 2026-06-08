@@ -29,6 +29,13 @@ echo "========================================="
 echo "Lemonade Stand Assistant - Full Installation"
 echo "========================================="
 echo ""
+
+# Run pre-installation validation
+echo "Running pre-installation validation checks..."
+echo "---------------------------------------------"
+bash "$SCRIPT_DIR/pre-install-validation.sh"
+
+echo ""
 echo "Configuration:"
 echo "  Repository Root: $REPO_ROOT"
 echo "  Namespace: $NAMESPACE"
@@ -84,6 +91,23 @@ echo "---------------------------------------------"
 # Wait a bit for operator to be fully ready
 sleep 10
 
+# Clean up any backup template files that might have wrong configuration
+if [ -f "$REPO_ROOT/grafana/templates/grafana.yaml.bak" ]; then
+    echo "Removing old backup template file..."
+    rm -f "$REPO_ROOT/grafana/templates/grafana.yaml.bak"
+fi
+
+# Delete old dashboard if it exists with incorrect datasource reference
+# This ensures clean deployment with correct template
+if oc get grafanadashboard guardrails-dashboard -n $NAMESPACE >/dev/null 2>&1; then
+    DASHBOARD_JSON=$(oc get grafanadashboard guardrails-dashboard -n $NAMESPACE -o jsonpath='{.spec.json}' 2>/dev/null || echo "")
+    if echo "$DASHBOARD_JSON" | grep -q '${DS_PROMETHEUS}'; then
+        echo "Removing old dashboard with incorrect datasource reference..."
+        oc delete grafanadashboard guardrails-dashboard -n $NAMESPACE --force --grace-period=0 2>/dev/null
+        sleep 2
+    fi
+fi
+
 helm upgrade --install lemonade-grafana ./grafana --namespace $NAMESPACE --set operator=false
 
 echo "✓ Grafana installed"
@@ -123,18 +147,49 @@ EOF
 
     # Wait a few seconds for token to be populated
     sleep 5
-
-    # Trigger datasource reconciliation to pick up the token
-    oc patch grafanadatasource prometheus-grafanadatasource -n $NAMESPACE --type=json \
-      -p='[{"op": "replace", "path": "/spec/datasource/editable", "value": false}]' 2>/dev/null || true
-    sleep 2
-    oc patch grafanadatasource prometheus-grafanadatasource -n $NAMESPACE --type=json \
-      -p='[{"op": "replace", "path": "/spec/datasource/editable", "value": true}]' 2>/dev/null || true
-
-    echo "✓ Datasource configured"
 else
     echo "✓ Grafana service account token already exists"
 fi
+
+# Wait for datasource to be created by Helm
+echo "Waiting for Grafana datasource to be created..."
+max_wait=30
+elapsed=0
+while ! oc get grafanadatasource prometheus-grafanadatasource -n $NAMESPACE >/dev/null 2>&1; do
+    if [ $elapsed -ge $max_wait ]; then
+        echo "ERROR: Timeout waiting for grafana datasource"
+        exit 1
+    fi
+    echo -n "."
+    sleep 2
+    elapsed=$((elapsed + 2))
+done
+echo " Done!"
+
+# Ensure datasource has the correct UID set in spec
+# This must be done before datasource reconciliation
+echo "Configuring datasource UID to 'Prometheus'..."
+DATASOURCE_UID=$(oc get grafanadatasource prometheus-grafanadatasource -n $NAMESPACE -o jsonpath='{.spec.datasource.uid}' 2>/dev/null || echo "")
+if [ "$DATASOURCE_UID" != "Prometheus" ]; then
+    # Try add first (if field doesn't exist), fallback to replace
+    oc patch grafanadatasource prometheus-grafanadatasource -n $NAMESPACE --type='json' \
+      -p='[{"op": "add", "path": "/spec/datasource/uid", "value": "Prometheus"}]' 2>/dev/null || \
+    oc patch grafanadatasource prometheus-grafanadatasource -n $NAMESPACE --type='json' \
+      -p='[{"op": "replace", "path": "/spec/datasource/uid", "value": "Prometheus"}]' 2>/dev/null
+    echo "✓ Datasource UID set to 'Prometheus'"
+else
+    echo "✓ Datasource UID already correct"
+fi
+
+# Trigger datasource reconciliation to pick up the token and UID
+oc patch grafanadatasource prometheus-grafanadatasource -n $NAMESPACE --type=json \
+  -p='[{"op": "replace", "path": "/spec/datasource/editable", "value": false}]' 2>/dev/null || true
+sleep 2
+oc patch grafanadatasource prometheus-grafanadatasource -n $NAMESPACE --type=json \
+  -p='[{"op": "replace", "path": "/spec/datasource/editable", "value": true}]' 2>/dev/null || true
+sleep 3
+
+echo "✓ Datasource configured"
 
 # Step 5: Wait for pods to be ready
 echo ""

@@ -401,13 +401,13 @@ spec:
           "targets": [
             {
               "editorMode": "code",
-              "expr": "sum by (detector) (guardrail_detections_by_detector)",
+              "expr": "round(sum by (detector) (increase(guardrail_detections_total[$__range])))",
               "legendFormat": "__auto",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "",
+          "title": "Detections by Guardrail",
           "type": "bargauge"
         },
         {
@@ -522,13 +522,13 @@ spec:
                 "uid": "Prometheus"
               },
               "editorMode": "code",
-              "expr": "sum(guardrail_requests_total)",
+              "expr": "round(sum(increase(guardrail_requests_total[$__range])))",
               "legendFormat": "__auto",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "",
+          "title": "Total Requests",
           "type": "stat"
         },
         {
@@ -643,13 +643,13 @@ spec:
                 "uid": "Prometheus"
               },
               "editorMode": "code",
-              "expr": "sum(guardrail_detections_by_direction{direction=\"input\"})",
+              "expr": "round(sum(increase(guardrail_local_regex_blocks_total[$__range])) or vector(0))",
               "legendFormat": "__auto",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "",
+          "title": "Input Blocked",
           "type": "stat"
         },
         {
@@ -764,13 +764,13 @@ spec:
                 "uid": "Prometheus"
               },
               "editorMode": "code",
-              "expr": "sum(guardrail_detections_by_direction{direction=\"output\"})",
+              "expr": "round(sum(increase(guardrail_detections_total{direction=\"output\"}[$__range])) or vector(0))",
               "legendFormat": "__auto",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "",
+          "title": "Answers Blocked",
           "type": "stat"
         },
         {
@@ -885,13 +885,13 @@ spec:
                 "uid": "Prometheus"
               },
               "editorMode": "code",
-              "expr": "sum(guardrail_requests_total) - sum(guardrail_detections_total)",
+              "expr": "round(clamp_min(sum(increase(guardrail_requests_total[$__range])) - sum(increase(guardrail_local_regex_blocks_total[$__range])), 0))",
               "legendFormat": "__auto",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "",
+          "title": "Approved Requests",
           "type": "stat"
         }
       ],
