@@ -1,83 +1,86 @@
 ---
-apiVersion: serving.kserve.io/v1alpha1
-kind: ServingRuntime
+kind: Deployment
+apiVersion: apps/v1
 metadata:
-  name: guardrails-detector-runtime-hap
-  annotations:
-    helm.sh/weight: "0"
+  name: guardrails-detector-ibm-hap-predictor
   labels:
-    opendatahub.io/dashboard: 'true'
+    app: guardrails-detector-ibm-hap-predictor
 spec:
-  annotations:
-    prometheus.io/path: /metrics
-    prometheus.io/port: '8080'
-  containers:
-    - args:
-        - '--workers'
-        - '4'
-        - '--host'
-        - 0.0.0.0
-        - '--port'
-        - '8000'
-        - '--log-config'
-        - /common/log_conf.yaml
-      command:
-        - uvicorn
-        - 'app:app'
-      env:
-        - name: MODEL_DIR
-          value: /mnt/models
-        - name: HF_HOME
-          value: /tmp/hf_home
-      image: quay.io/trustyai/guardrails-detector-huggingface-runtime:latest
-      name: kserve-container
-      ports:
-        - containerPort: 8000
-          protocol: TCP
-  multiModel: false
-  supportedModelFormats:
-    - autoSelect: true
-      name: guardrails-detector-huggingface
+  replicas: {{ .Values.replicas.hap }}
+  selector:
+    matchLabels:
+      app: guardrails-detector-ibm-hap-predictor
+  template:
+    metadata:
+      labels:
+        app: guardrails-detector-ibm-hap-predictor
+    spec:
+      containers:
+        - resources:
+            limits:
+              cpu: '2'
+              memory: 2Gi
+            requests:
+              cpu: '1'
+              memory: 1Gi
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+              scheme: HTTP
+            initialDelaySeconds: 15
+            timeoutSeconds: 5
+            periodSeconds: 10
+            successThreshold: 1
+            failureThreshold: 3
+          terminationMessagePath: /dev/termination-log
+          name: hap-detector
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+              scheme: HTTP
+            initialDelaySeconds: 30
+            timeoutSeconds: 5
+            periodSeconds: 30
+            successThreshold: 1
+            failureThreshold: 3
+          env:
+            - name: LOG_LEVEL
+              value: INFO
+          ports:
+            - containerPort: 8000
+              protocol: TCP
+          imagePullPolicy: Always
+          terminationMessagePolicy: File
+          command: ["python", "-m", "uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
+          image: 'quay.io/agiertli/hap-detector-sk:1.0.0'
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
+      dnsPolicy: ClusterFirst
+      securityContext: {}
+      schedulerName: default-scheduler
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 25%
+      maxSurge: 25%
+  revisionHistoryLimit: 10
+  progressDeadlineSeconds: 600
 ---
-apiVersion: serving.kserve.io/v1beta1
-kind: InferenceService
+kind: Service
+apiVersion: v1
 metadata:
-  annotations:
-    helm.sh/weight: "1"
-    openshift.io/display-name: guardrails-detector-ibm-hap
-    serving.kserve.io/deploymentMode: RawDeployment
-  name: guardrails-detector-ibm-hap
+  name: guardrails-detector-ibm-hap-predictor
   labels:
-    opendatahub.io/dashboard: 'true'
+    app: guardrails-detector-ibm-hap-predictor
 spec:
-  predictor:
-    automountServiceAccountToken: false
-    maxReplicas: {{ .Values.replicas.hap }}
-    minReplicas: {{ .Values.replicas.hap }}
-    model:
-      modelFormat:
-        name: guardrails-detector-huggingface
-      name: ''
-      resources:
-        limits:
-          cpu: {{ .Values.detectors.hap.resources.limits.cpu }}
-          memory: {{ .Values.detectors.hap.resources.limits.memory }}
-          {{- if .Values.detectors.hap.useGpu }}
-          nvidia.com/gpu: '1'
-          {{- end }}
-        requests:
-          cpu: {{ .Values.detectors.hap.resources.requests.cpu }}
-          memory: {{ .Values.detectors.hap.resources.requests.memory }}
-          {{- if .Values.detectors.hap.useGpu }}
-          nvidia.com/gpu: '1'
-          {{- end }}
-      runtime: guardrails-detector-runtime-hap
-      storage:
-        key: minio-data-connection-detector-models
-        path: granite-guardian-hap-125m
-    {{- if .Values.detectors.hap.useGpu }}
-    tolerations:
-      - effect: NoSchedule
-        key: nvidia.com/gpu
-        operator: Exists
-    {{- end }}
+  ports:
+    - protocol: TCP
+      port: 8000
+      targetPort: 8000
+  internalTrafficPolicy: Cluster
+  type: ClusterIP
+  sessionAffinity: None
+  selector:
+    app: guardrails-detector-ibm-hap-predictor

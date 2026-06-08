@@ -13,9 +13,9 @@ data:
         service:
             hostname: chunker-service
             port: 8085
-    openai: 
+    openai:
       service:
-        hostname: llama-32-predictor
+        hostname: qwen3-8b-predictor
         port: 8080
     detectors:
       regex_competitor:
@@ -45,4 +45,4 @@ data:
           hostname: lingua-detector
           port: 8080
         chunker_id: sentence
-        default_threshold: 0.88
+        default_threshold: 0.95

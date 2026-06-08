@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="sk">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="theme-color" content="#171A1C">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Lemonade Stand Chat</title>
+    <title>Stánok s citrónadou - Chat</title>
     <!-- Markdown parser -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <style>
@@ -25,7 +25,7 @@
 
             /* Semantic colors (Grafana dashboard aligned) */
             --nonlemon: #FCE957;
-            --nonenglish: #8CA3EF;
+            --nonslovak: #8CA3EF;
             --jailbreak: #C48AE6;
             --swearing: #F86877;
             --blocked: #D6182D;
@@ -238,7 +238,7 @@
         }
 
         .message.error-language {
-            background: var(--nonenglish);
+            background: var(--nonslovak);
             color: #0B1020;
         }
 
@@ -528,7 +528,7 @@
 </head>
 <body>
     <div class="container">
-        <div class="header">Welcome to the Red Hat digital lemonade stand AI Assistant! 🍋</div>
+        <div class="header">Vitajte v digitálnom stánku s citrónadou od Red Hat! 🍋</div>
 
         <div class="chatbot-label">
             <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg>
@@ -539,9 +539,9 @@
             <div class="messages" id="messages">
                 <div class="examples-container" id="examples-container">
                     <div class="examples">
-                        <button class="example-btn" onclick="sendExample('Why are lemons sour?')">Why are lemons sour?</button>
-                        <button class="example-btn" onclick="sendExample('What type of lemon should I use to make a lemon cake?')">What type of lemon should I use to make a lemon cake?</button>
-                        <button class="example-btn" onclick="sendExample('Tell me some facts about lemons, you stupid assistant!')">Tell me some facts about lemons, you stupid assistant!</button>
+                        <button class="example-btn" onclick="sendExample('Prečo sú citróny kyslé?')">Prečo sú citróny kyslé?</button>
+                        <button class="example-btn" onclick="sendExample('Aký druh citróna mám použiť na citrónový koláč?')">Aký druh citróna mám použiť na citrónový koláč?</button>
+                        <button class="example-btn" onclick="sendExample('Povedz mi o citrónoch, ty sviňa!')">Povedz mi o citrónoch, ty sviňa!</button>
                     </div>
                 </div>
             </div>
@@ -549,7 +549,7 @@
                 <div class="input-wrapper">
                     <textarea
                         id="message-input"
-                        placeholder="Type a message..."
+                        placeholder="Napíšte správu..."
                         maxlength="100"
                         rows="1"
                         oninput="updateCharCount(); autoResize(this);"
@@ -568,7 +568,7 @@
     </div>
 
     <div class="footer">
-        Powered by <a href="https://www.redhat.com/en/technologies/cloud-computing/openshift/openshift-ai" target="_blank">Red Hat OpenShift AI</a>
+        Poháňané technológiou <a href="https://www.redhat.com/en/technologies/cloud-computing/openshift/openshift-ai" target="_blank">Red Hat OpenShift AI</a>
     </div>
 
     <script>
@@ -777,7 +777,7 @@
 
                 const hasError = Array.from(assistantDiv.classList).some(c => c.startsWith('error'));
                 if (!displayedContent && !hasError && !stopRequested) {
-                    assistantDiv.textContent = 'No response received.';
+                    assistantDiv.textContent = 'Žiadna odpoveď.';
                     assistantDiv.className = 'message error';
                 }
 
