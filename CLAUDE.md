@@ -42,27 +42,30 @@ Language is fully configurable via Helm values — no code changes or image rebu
 **Quick switch** (SK default → CZ): add `-f ./chart/values-cs.yaml` to the helm command.
 
 **What's configured per language** (`chart/values.yaml` / `chart/values-cs.yaml`):
-- `language.code` — ISO 639-1 code (sk, cs) for TranslateGemma
+- `language.code` — ISO 639-1 code (sk, cs) for TranslateGemma and lingua detector
 - `language.name` — display name (slovensky, česky)
-- `language.alsoAcceptLanguages` — comma-separated close languages the lingua detector also accepts
 - `language.messages.*` — all detector/error messages in the target language
 - `language.ui.*` — all frontend strings (header, examples, placeholder, footer)
+- `translateService.enabled` — must be `true` for multilingual mode (env var `ENABLE_TRANSLATION`)
+- `translateService.hfToken` — HuggingFace token for TranslateGemma model download
+
+Only ONE language is active at a time. The lingua detector only accepts input in the configured `language.code`.
 
 **Adding a new language**: copy `chart/values-cs.yaml` to `chart/values-XX.yaml`, translate all strings, set `language.code` and `language.name`, then deploy with `-f ./chart/values-XX.yaml`. The lingua detector supports: sk, cs, de, fr, es, it, pl, hu, pt, nl, ro, bg, hr, sl, uk, ru. TranslateGemma must also support the language.
 
-## Architecture (itapa-sk-v2)
+## Architecture (translation branch)
 
 ```
-User (Slovak) → FastAPI App
-  1. Lingua SK: is it Slovak? (0.01s) → NOT Slovak → block 🇸🇰
-  2. TranslateGemma 4B (vLLM): SK→EN (~1s)
+User (target language) → FastAPI App
+  1. Lingua detector: is it the configured language? (0.01s) → NOT accepted → block
+  2. TranslateGemma 4B (vLLM): target→EN (~1s)
   3. Local regex check on English text
   4. Orchestrator NON-STREAMING (fixes empty response bug):
      - Input: HAP, Prompt Injection
      - Output: HAP, Regex Competitor
      - LLaMA 3.2 3B → English response
   5. Check for blocks/warnings in response
-  6. TranslateGemma 4B (vLLM): EN→SK (~3s)
+  6. TranslateGemma 4B (vLLM): EN→target (~3s)
   7. Fake word-by-word streaming to user
   Total: ~5-7s per request
 ```
@@ -108,13 +111,13 @@ Non-streaming works perfectly with all detectors.
 
 | Image | Purpose |
 |-------|---------|
-| `lemon-fastapi-translate:1.0.12` | App with translation + non-streaming orchestrator |
+| `lemon-fastapi-translate:1.0.13` | App with translation, locale loading, non-streaming orchestrator |
 | `lingua-language-detector:2.0.0` | Lingua detector (language-agnostic, configured via ACCEPTED_LANGUAGE env var) |
 
 ## Known Issues
 
 - Orchestrator streaming + output detectors = empty responses. Fixed by using non-streaming.
-- TranslateGemma EN→SK takes ~3-10s depending on response length.
+- TranslateGemma EN→target takes ~3-10s depending on response length.
 - vLLM v0.14.1 needs writable HOME dir (set HOME=/tmp).
 - Grafana dashboard disappears after pod restart. Fix: run `./scripts/fix-grafana-dashboard.sh`.
 
@@ -123,7 +126,7 @@ Non-streaming works perfectly with all detectors.
 App logs `[TRACE]` lines showing timing per phase:
 ```
 [TRACE] Language check: 0.01s
-[TRACE] SK→EN translation: 1.19s
+[TRACE] XX→EN translation: 1.19s
 [TRACE] Orchestrator+LLM: 2.15s
-[TRACE] EN→SK translation: 3.41s
+[TRACE] EN→XX translation: 3.41s
 ```
