@@ -58,6 +58,11 @@ User (target language) → FastAPI App
   Total: ~5-7s per request
 ```
 
+**`ENABLE_TRANSLATION`** env var (set from `translateService.enabled`) switches the app
+between English-only mode and translation mode. When `true`: lingua check runs first,
+input/output are translated via TranslateGemma, orchestrator uses `stream: false`, and
+language_detection detector is skipped (lingua handles it instead).
+
 **Critical**: Orchestrator MUST be called with `stream: false` when translation
 is enabled. Streaming + output detectors = empty SSE responses (TrustyAI bug).
 Non-streaming works perfectly with all detectors.
