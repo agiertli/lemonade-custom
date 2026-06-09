@@ -4,13 +4,59 @@ The Lemonade Stand Assistant supports multilingual operation via [TranslateGemma
 
 ## How it works
 
-```
-User (native language) → FastAPI App
-  1. Lingua detector: validates user input is in the configured language
-  2. TranslateGemma: translates input → English
-  3. Guardrails + LLM process the English text
-  4. TranslateGemma: translates English response → native language
-  5. Response streamed back to user
+```mermaid
+flowchart TB
+    User(["\N{speech balloon} User\n(native language)"])
+
+    subgraph App["FastAPI App (lemon-fastapi-translate)"]
+        direction TB
+        Regex["Regex Check\n(competitor mentions)"]
+        StreamBack["Fake word-by-word\nstreaming to user"]
+    end
+
+    subgraph Lingua["Lingua Detector"]
+        LinguaCheck{"Is input in\nconfigured language?"}
+    end
+
+    subgraph TG["TranslateGemma 4B (vLLM)"]
+        Translate_In["Translate\ntarget lang → EN"]
+        Translate_Out["Translate\nEN → target lang"]
+    end
+
+    subgraph Orchestrator["Guardrails Orchestrator (non-streaming)"]
+        direction TB
+        InputDetectors["Input Detectors\n• HAP (Granite Guardian)\n• Prompt Injection (DeBERTa)"]
+        LLM["LLaMA 3.2 3B\n(English response)"]
+        OutputDetectors["Output Detectors\n• HAP (Granite Guardian)\n• Regex Competitor"]
+        InputDetectors --> LLM --> OutputDetectors
+    end
+
+    subgraph Config["Configuration (Helm values)"]
+        Locale["Locale ConfigMap\n(messages + UI strings)"]
+        LangCode["language.code\n(ISO 639-1)"]
+    end
+
+    User -->|"native language\nmessage"| App
+    App --> LinguaCheck
+    LinguaCheck -->|"❌ Wrong language"| User
+    LinguaCheck -->|"✅ Accepted"| Regex
+    Regex -->|"❌ Competitor\nmentioned"| User
+    Regex -->|"✅ Clean"| Translate_In
+    Translate_In -->|"English text"| Orchestrator
+    OutputDetectors -->|"English response\n(or block)"| Translate_Out
+    Translate_Out -->|"native language\nresponse"| StreamBack
+    StreamBack -->|"SSE chunks"| User
+
+    Config -.->|"language, messages"| App
+    Config -.->|"ACCEPTED_LANGUAGE"| Lingua
+    Config -.->|"language code"| TG
+
+    style User fill:#4a90d9,stroke:#2c5f8a,color:#fff
+    style Lingua fill:#f5a623,stroke:#c47d1a,color:#fff
+    style TG fill:#7b68ee,stroke:#5a4abf,color:#fff
+    style Orchestrator fill:#e8e8e8,stroke:#999
+    style App fill:#50c878,stroke:#3a9659,color:#fff
+    style Config fill:#f0f0f0,stroke:#ccc
 ```
 
 Only **one language is active at a time**. Switching language is a pure configuration change — no code modifications or image rebuilds required.
