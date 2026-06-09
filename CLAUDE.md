@@ -105,7 +105,7 @@ Non-streaming works perfectly with all detectors.
 | Image | Purpose |
 |-------|---------|
 | `lemon-fastapi-translate:1.0.13` | App with translation, locale loading, non-streaming orchestrator |
-| `lingua-language-detector:2.1.0` | Lingua detector (language-agnostic, 63 languages, configured via ACCEPTED_LANGUAGE env var) |
+| `lingua-language-detector:2.1.0` | Lingua detector (language-agnostic, 65 languages, configured via ACCEPTED_LANGUAGE env var) |
 
 ## Known Issues
 
