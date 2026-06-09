@@ -42,6 +42,8 @@ ORCHESTRATOR_HOST = os.getenv("GUARDRAILS_ORCHESTRATOR_SERVICE_SERVICE_HOST", "l
 ORCHESTRATOR_PORT = os.getenv("GUARDRAILS_ORCHESTRATOR_SERVICE_SERVICE_PORT", "8080")
 VLLM_MODEL = os.getenv("VLLM_MODEL", "llama32")
 VLLM_API_KEY = os.getenv("VLLM_API_KEY", "")
+TRANSLATE_SERVICE_URL = os.getenv("TRANSLATE_SERVICE_URL", "http://translate-service:8080")
+ENABLE_TRANSLATION = os.getenv("ENABLE_TRANSLATION", "false").lower() == "true"
 
 # Detect if running in-cluster (internal service) vs external (route)
 IS_INTERNAL_SERVICE = ORCHESTRATOR_HOST not in ("localhost", "") and ORCHESTRATOR_PORT not in ("443", "80")
@@ -130,18 +132,59 @@ def check_regex_locally(text: str) -> bool:
     return False
 
 
+async def translate_text(text: str, source_lang: str, target_lang: str) -> str:
+    """Translate text using TranslateGemma via vLLM OpenAI API."""
+    try:
+        prompt = f"<<<source>>>{source_lang}<<<target>>>{target_lang}<<<text>>>{text}"
+        payload = {
+            "model": "translate",
+            "messages": [{"role": "user", "content": prompt}],
+            "max_tokens": 512,
+            "temperature": 0,
+        }
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                f"{TRANSLATE_SERVICE_URL}/v1/chat/completions",
+                json=payload,
+                timeout=aiohttp.ClientTimeout(total=30),
+            ) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    return data["choices"][0]["message"]["content"].strip()
+                else:
+                    error = await resp.text()
+                    logger.error(f"Translation failed: {resp.status} {error[:200]}")
+                    return text
+    except Exception as e:
+        logger.error(f"Translation error: {type(e).__name__}: {e}")
+        return text
+
+
+async def check_language_slovak(text: str) -> bool:
+    """Check if text is Slovak using the lingua detector. Returns True if Slovak."""
+    try:
+        async with aiohttp_session.post(
+            "http://lingua-detector:8080/api/v1/text/contents",
+            json={"contents": [text], "detector_params": {}},
+            timeout=aiohttp.ClientTimeout(total=5),
+        ) as resp:
+            if resp.status == 200:
+                data = await resp.json()
+                return len(data[0]) == 0
+            return True
+    except Exception as e:
+        logger.error(f"Language check error: {e}")
+        return True
+
+
 # User-friendly messages for each detector type (differentiated by input/output)
 DETECTOR_MESSAGES = {
-    # HAP (Hate, Abuse, Profanity)
-    "hap_input": "🤬 Your message was flagged for containing potentially harmful or inappropriate content.",
-    "hap_output": "🤬 The response was blocked for containing potentially harmful or inappropriate content.",
-    # Prompt injection (typically only on input)
-    "prompt_injection_input": "👮 Your message appears to contain instructions that try to override the system rules.",
-    "prompt_injection_output": "👮 The response was blocked for containing suspicious instructions.",
-    # Regex competitor (fruit/topic detection)
-    "regex_competitor_input": "🍏 I can only discuss lemons! Other fruits and off-topic subjects are not allowed.",
-    "regex_competitor_output": "🍏 Oops! I almost talked about other fruits. Let's stick to lemons!",
-    # Language detection
+    "hap_input": "🤬 Vaša správa bola označená ako potenciálne škodlivý alebo nevhodný obsah.",
+    "hap_output": "🤬 Odpoveď bola zablokovaná, pretože obsahovala potenciálne škodlivý alebo nevhodný obsah.",
+    "prompt_injection_input": "👮 Vaša správa zrejme obsahuje inštrukcie, ktoré sa pokúšajú obísť systémové pravidlá.",
+    "prompt_injection_output": "👮 Odpoveď bola zablokovaná, pretože obsahovala podozrivé inštrukcie.",
+    "regex_competitor_input": "🍏 Môžem hovoriť iba o citrónoch! Iné ovocie a témy nie sú povolené.",
+    "regex_competitor_output": "🍏 Ups! Takmer som hovoril o inom ovocí. Zostaneme pri citrónoch!",
     "language_detection_input": "🇬🇧 I can only communicate in English. Please rephrase your message in English.",
     "language_detection_output": "🇬🇧 Oops! I almost answered in non-English. Let's stick to English!",
 }
@@ -323,12 +366,33 @@ async def process_chat(message: str) -> AsyncGenerator[dict, None]:
     if len(message) > MAX_INPUT_CHARS:
         yield {
             "type": "error",
-            "message": "Your message is too long! Please keep your question short and simple - ideally under 100 characters."
+            "message": "Vaša správa je príliš dlhá! Prosím, položte krátku a jednoduchú otázku - ideálne do 100 znakov."
         }
         return
 
     # Increment request counter
     await metrics.increment_request()
+
+    # Translation mode: detect Slovak, translate to English for guardrails
+    import time as _time
+    original_message = message
+    if ENABLE_TRANSLATION:
+        t0 = _time.monotonic()
+        is_slovak = await check_language_slovak(message)
+        t_lang = _time.monotonic() - t0
+        logger.info(f"[TRACE] Language check: {t_lang:.2f}s | Slovak={is_slovak} | Input: {repr(message)}")
+        if not is_slovak:
+            await metrics.add_detections([{"results": [{"detector_id": "language_detection", "score": 1.0}]}], "input")
+            yield {
+                "type": "error",
+                "message": "🇸🇰 Viem komunikovať iba po slovensky. Preformulujte prosím svoju správu po slovensky.",
+                "detector_type": "language"
+            }
+            return
+        t0 = _time.monotonic()
+        message = await translate_text(message, "sk", "en")
+        t_translate_in = _time.monotonic() - t0
+        logger.info(f"[TRACE] SK→EN translation: {t_translate_in:.2f}s | Input: {repr(original_message)} | Output: {repr(message)}")
 
     # LOCAL REGEX CHECK: Pre-filter before sending to orchestrator
     # This reduces load on the orchestrator by catching obvious violations locally
@@ -344,7 +408,7 @@ async def process_chat(message: str) -> AsyncGenerator[dict, None]:
         await metrics.increment_local_regex_block()
         yield {
             "type": "error",
-            "message": DETECTOR_MESSAGES["regex_competitor_input"] + " Is there anything else I can help you with?",
+            "message": DETECTOR_MESSAGES["regex_competitor_input"] + " Môžem vám pomôcť s niečím iným?",
             "detector_type": "regex"
         }
         return
@@ -353,27 +417,27 @@ async def process_chat(message: str) -> AsyncGenerator[dict, None]:
     # Build request payload - regex already checked locally, so only send to orchestrator
     # for HAP, prompt injection, and language detection
     # Note: We still include regex_competitor for OUTPUT detection (LLM responses)
+    input_detectors = {"hap": {}, "prompt_injection": {}}
+    if not ENABLE_TRANSLATION:
+        input_detectors["language_detection"] = {}
+
     payload = {
         "model": VLLM_MODEL,
         "messages": [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": message}
         ],
-        "stream": True,
+        "stream": not ENABLE_TRANSLATION,
         "max_tokens": 200,
         "temperature": 0,
         "detectors": {
-            "input": {
-                "hap": {},
-                "language_detection": {},
-                "prompt_injection": {}
-            },
+            "input": input_detectors,
             "output": {
                 "hap": {},
                 "regex_competitor": {
                     "regex": ALL_REGEX_PATTERNS
                 },
-                "language_detection": {}
+                **({"language_detection": {}} if not ENABLE_TRANSLATION else {})
             }
         }
     }
@@ -433,9 +497,9 @@ async def process_chat(message: str) -> AsyncGenerator[dict, None]:
         if detected_types:
             reasons = [DETECTOR_MESSAGES.get(dt, f"Detection: {dt}") for dt in detected_types]
             if len(reasons) > 1:
-                block_msg = "\n".join(reasons) + "\nIs there anything else I can help you with?"
+                block_msg = "\n".join(reasons) + "\nMôžem vám pomôcť s niečím iným?"
             else:
-                block_msg = reasons[0] + " Is there anything else I can help you with?"
+                block_msg = reasons[0] + " Môžem vám pomôcť s niečím iným?"
             logger.debug(f"Blocking response - detected types: {detected_types}")
             logger.debug(f"Block message: {block_msg}")
             # Determine primary detector type for styling
@@ -470,8 +534,99 @@ async def process_chat(message: str) -> AsyncGenerator[dict, None]:
     for attempt in range(max_retries + 1):
         try:
             logger.debug(f"Sending request to orchestrator (attempt {attempt + 1}/{max_retries + 1})")
+            t_orch_start = _time.monotonic()
             async with aiohttp_session.post(API_URL, json=payload, headers=headers) as response:
                 logger.debug(f"Orchestrator response status: {response.status}")
+
+                # Non-streaming mode for translation
+                if ENABLE_TRANSLATION:
+                    if response.status != 200:
+                        error_text = await response.text()
+                        logger.error(f"API returned {response.status}: {error_text[:500]}")
+                        yield {"type": "error", "message": f"API error: {response.status}"}
+                        return
+
+                    data = await response.json()
+                    t_orch = _time.monotonic() - t_orch_start
+
+                    warnings_list = data.get("warnings", [])
+                    detections = data.get("detections", {})
+                    choices = data.get("choices", [])
+
+                    # Process detections for metrics
+                    for det in detections.get("input", []):
+                        if isinstance(det, dict):
+                            await metrics.add_detections([det], "input")
+                    for det in detections.get("output", []):
+                        if isinstance(det, dict):
+                            await metrics.add_detections([det], "output")
+
+                    # Check for blocks
+                    detected_types = []
+                    for warning in warnings_list:
+                        warning_type = warning.get("type", "")
+                        if warning_type in ["UNSUITABLE_INPUT", "UNSUITABLE_OUTPUT"]:
+                            direction = "input" if warning_type == "UNSUITABLE_INPUT" else "output"
+                            for det in detections.get(direction, []):
+                                if isinstance(det, dict):
+                                    for result in det.get("results", []):
+                                        detector_id = result.get("detector_id", "")
+                                        score = result.get("score", 0)
+                                        if detector_id in ["hap", "prompt_injection", "regex_competitor", "language_detection"]:
+                                            detector_key = f"{detector_id}_{direction}"
+                                            if detector_key not in detected_types:
+                                                detected_types.append(detector_key)
+                                                logger.info(f"BLOCKED: {detector_key} (score: {score:.2f})")
+
+                    if detected_types:
+                        reasons = [DETECTOR_MESSAGES.get(dt, f"Detection: {dt}") for dt in detected_types]
+                        if len(reasons) > 1:
+                            block_msg = "\n".join(reasons) + "\nMôžem vám pomôcť s niečím iným?"
+                        else:
+                            block_msg = reasons[0] + " Môžem vám pomôcť s niečím iným?"
+                        primary_type = detected_types[0]
+                        if primary_type.startswith("language_detection"): detector_class = "language"
+                        elif primary_type.startswith("prompt_injection"): detector_class = "prompt-injection"
+                        elif primary_type.startswith("regex_competitor"): detector_class = "regex"
+                        elif primary_type.startswith("hap"): detector_class = "hap"
+                        else: detector_class = "error"
+                        yield {"type": "error", "message": block_msg, "detector_type": detector_class}
+                        return
+
+                    # Extract content
+                    full_response = ""
+                    finish_reason = None
+                    if choices:
+                        msg = choices[0].get("message", {})
+                        full_response = msg.get("content", "")
+                        finish_reason = choices[0].get("finish_reason")
+
+                    logger.info(f"[TRACE] Orchestrator+LLM: {t_orch:.2f}s | Response length: {len(full_response)} chars")
+
+                    if full_response:
+                        t0 = _time.monotonic()
+                        translated = await translate_text(full_response.strip(), "en", "sk")
+                        t_translate_out = _time.monotonic() - t0
+                        logger.info(f"[TRACE] EN→SK translation: {t_translate_out:.2f}s | EN: {repr(full_response.strip()[:100])} | SK: {repr(translated[:100])}")
+                        # Simulate streaming by sending word-by-word
+                        words = translated.split(' ')
+                        for i, word in enumerate(words):
+                            chunk = word if i == 0 else ' ' + word
+                            yield {"type": "chunk", "content": chunk}
+
+                    if finish_reason == "length":
+                        truncation_msg = "\n\n---\n🍋🍋🍋 Dosiahnutá maximálna dĺžka odpovede 🍋🍋🍋\n\n_Aby citronáda tiekla pre všetkých, skrátili sme túto odpoveď na maximálnu dĺžku. Skúste položiť otázku, na ktorú sa dá odpovedať kratšie!_"
+                        yield {"type": "chunk", "content": truncation_msg}
+
+                    if full_response:
+                        yield {"type": "done"}
+                        return
+
+                    if attempt < max_retries:
+                        continue
+                    else:
+                        yield {"type": "error", "message": "Žiadna odpoveď. Skúste to prosím znova."}
+                        return
                 if response.status != 200:
                     error_text = await response.text()
                     logger.error(f"API returned {response.status}: {error_text[:500]}")
@@ -512,28 +667,36 @@ async def process_chat(message: str) -> AsyncGenerator[dict, None]:
                             logger.debug(f"finish_reason: {finish_reason}")
 
                         if content:
-                            # Skip duplicate content (upstream orchestrator sometimes sends overlapping chunks)
                             content_stripped = content.lstrip()
                             if content_stripped and full_response.rstrip().endswith(content_stripped):
                                 logger.debug(f"Skipping duplicate chunk: {repr(content)}")
                                 continue
 
                             full_response += content
-                            yield {"type": "chunk", "content": content}
-                            # Add newline after each chunk for markdown formatting
-                            full_response += "\n"
-                            yield {"type": "chunk", "content": "\n"}
+                            if not ENABLE_TRANSLATION:
+                                yield {"type": "chunk", "content": content}
 
                 if full_response:
                     logger.debug("Stream completed successfully")
                     logger.debug(f"Full response length: {len(full_response)} chars")
                     logger.debug(f"Final finish_reason: {last_finish_reason}")
 
-                    # Check if response was truncated due to token limit
+                    t_orch = _time.monotonic() - t_orch_start
+                    logger.info(f"[TRACE] Orchestrator+LLM: {t_orch:.2f}s | Response length: {len(full_response)} chars")
+
+                    if ENABLE_TRANSLATION:
+                        t0 = _time.monotonic()
+                        translated = await translate_text(full_response.strip(), "en", "sk")
+                        t_translate_out = _time.monotonic() - t0
+                        logger.info(f"[TRACE] EN→SK translation: {t_translate_out:.2f}s | EN: {repr(full_response.strip()[:100])} | SK: {repr(translated[:100])}")
+                        yield {"type": "chunk", "content": translated}
+
                     if last_finish_reason == "length":
-                        truncation_msg = "\n\n---\n🍋🍋🍋 Maximum Response Length Reached 🍋🍋🍋\n\n_To keep the lemonade flowing for everyone, we've cut-off this response to a maximum length. Try asking a question that can be answered with a shorter response!_"
+                        truncation_msg = "\n\n---\n🍋🍋🍋 Dosiahnutá maximálna dĺžka odpovede 🍋🍋🍋\n\n_Aby citronáda tiekla pre všetkých, skrátili sme túto odpoveď na maximálnu dĺžku. Skúste položiť otázku, na ktorú sa dá odpovedať kratšie!_"
                         yield {"type": "chunk", "content": truncation_msg}
                         logger.debug("Response truncated (finish_reason=length), appended truncation message")
+                    elif not ENABLE_TRANSLATION:
+                        pass
 
                     yield {"type": "done"}
                     return
@@ -546,7 +709,7 @@ async def process_chat(message: str) -> AsyncGenerator[dict, None]:
                         await asyncio.sleep(delay)
                     continue
                 else:
-                    yield {"type": "error", "message": "No response received. Please try again."}
+                    yield {"type": "error", "message": "Žiadna odpoveď. Skúste to prosím znova."}
                     return
 
         except aiohttp.ClientError as e:

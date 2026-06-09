@@ -1,0 +1,104 @@
+# Project: Lemonade Stand Assistant
+
+AI-powered customer service chatbot with guardrails on Red Hat OpenShift.
+
+## Git
+
+- **Push remote**: Always use `custom` remote (`agiertli/lemonade-custom`). Never push to `origin`.
+- English demo: `automated-fixes` branch
+- Slovak demo (translation): `itapa-sk-v2` branch (current)
+- Slovak demo (native, abandoned): `itapa-sk` branch
+
+## Installation
+
+```bash
+# English version
+git checkout automated-fixes
+PROD_MODE=true ./scripts/install.sh
+
+# Slovak version (after base install)
+git checkout itapa-sk-v2
+PROD_MODE=true ./scripts/install.sh
+HF_TOKEN=$(cat ~/.cache/huggingface/token)
+helm upgrade lemonade-stand-assistant ./chart -n lemonade-stand-assistant \
+  -f ./chart/values-prod.yaml \
+  --set translateService.enabled=true \
+  --set "translateService.hfToken=$HF_TOKEN"
+```
+
+## Architecture (itapa-sk-v2)
+
+```
+User (Slovak) → FastAPI App
+  1. Lingua SK: is it Slovak? (0.01s) → NOT Slovak → block 🇸🇰
+  2. TranslateGemma 4B (vLLM): SK→EN (~1s)
+  3. Local regex check on English text
+  4. Orchestrator NON-STREAMING (fixes empty response bug):
+     - Input: HAP, Prompt Injection
+     - Output: HAP, Regex Competitor
+     - LLaMA 3.2 3B → English response
+  5. Check for blocks/warnings in response
+  6. TranslateGemma 4B (vLLM): EN→SK (~3s)
+  7. Fake word-by-word streaming to user
+  Total: ~5-7s per request
+```
+
+**Critical**: Orchestrator MUST be called with `stream: false` when translation
+is enabled. Streaming + output detectors = empty SSE responses (TrustyAI bug).
+Non-streaming works perfectly with all detectors.
+
+## GPU Allocation (7 x g6.4xlarge L4)
+
+- LLaMA 3.2 3B: 3 replicas (3 GPUs)
+- TranslateGemma 4B: 2 replicas (2 GPUs) — vLLM v0.14.1
+- HAP detector: 2 replicas (CPU, tolerates GPU taint)
+- PI detector: 2 replicas (CPU, tolerates GPU taint)
+- Total: 5/7 GPUs used
+
+## TranslateGemma vLLM Setup
+
+- Image: `vllm/vllm-openai:v0.14.1` (NOT rhoai, too old for Gemma3)
+- Model: `Infomaniak-AI/vllm-translategemma-4b-it` (vLLM-optimized)
+- API format: `<<<source>>>sk<<<target>>>en<<<text>>>...` in user message
+- Requires `HOME=/tmp` env var (permission fix for /.cache)
+- Requires `mkdir -p /tmp/.cache/vllm /tmp/.cache/flashinfer` before start
+- Model downloads at startup via HF_TOKEN (~2 min, emptyDir volume)
+- max-model-len=2048, max-num-seqs=32
+
+## Key Files
+
+- `chart/templates/translate-service.yaml` — TranslateGemma vLLM deployment
+- `chart/templates/lemonade-stand-app.yaml` — App + Slovak system prompt + env vars
+- `chart/templates/lingua.yaml` — Slovak lingua detector
+- `chart/templates/ibm-hap-detector.yaml` — HAP (CPU, GPU taint toleration always on)
+- `chart/templates/prompt-injection-detector.yaml` — PI (CPU, GPU taint toleration always on)
+- `chart/templates/llm-llama32.yaml` — LLaMA 3.2 3B
+- `chart/values-prod.yaml` — Prod config (GPU off for detectors)
+- `lemonade-stand-app/app_fastapi.py` — Main app with translation logic
+- `lemonade-stand-app/static/index.html` — Slovak UI
+- `translate-service/` — (legacy FastAPI wrapper, not used with vLLM approach)
+- `lingua-detector/` — Slovak lingua detector source
+
+## Container Images (quay.io/agiertli)
+
+| Image | Purpose |
+|-------|---------|
+| `lemon-fastapi-translate:1.0.12` | App with translation + non-streaming orchestrator |
+| `lingua-language-detector-sk:1.0.0` | Lingua accepting Slovak |
+
+## Known Issues
+
+- Orchestrator streaming + output detectors = empty responses. Fixed by using non-streaming.
+- TranslateGemma EN→SK takes ~3-10s depending on response length.
+- vLLM v0.14.1 needs writable HOME dir (set HOME=/tmp).
+- Grafana dashboard disappears after pod restart. Fix: run `./scripts/fix-grafana-dashboard.sh`.
+
+## Tracing
+
+App logs `[TRACE]` lines showing timing per phase:
+```
+[TRACE] Language check: 0.01s
+[TRACE] SK→EN translation: 1.19s
+[TRACE] Orchestrator+LLM: 2.15s
+[TRACE] EN→SK translation: 3.41s
+```

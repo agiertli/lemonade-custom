@@ -1,0 +1,127 @@
+{{- if .Values.translateService.enabled }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: hf-token-secret
+  labels:
+    app: translate-service
+type: Opaque
+stringData:
+  HF_TOKEN: "{{ .Values.translateService.hfToken }}"
+---
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: translate-service
+  labels:
+    app: translate-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: translate-service
+  template:
+    metadata:
+      labels:
+        app: translate-service
+    spec:
+      containers:
+        - name: vllm
+          image: 'vllm/vllm-openai:v0.14.1'
+          command:
+            - bash
+            - -c
+            - |
+              mkdir -p /tmp/.cache/vllm /tmp/.cache/flashinfer
+              exec vllm serve Infomaniak-AI/vllm-translategemma-4b-it \
+                --dtype=bfloat16 \
+                --gpu-memory-utilization=0.90 \
+                --port=8080 \
+                --served-model-name=translate \
+                --max-model-len=2048 \
+                --max-num-seqs=32 \
+                --host=0.0.0.0
+          env:
+            - name: HF_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: hf-token-secret
+                  key: HF_TOKEN
+            - name: VLLM_CONFIG_ROOT
+              value: /tmp
+            - name: HF_HOME
+              value: /tmp/hf_cache
+            - name: XDG_CACHE_HOME
+              value: /tmp/cache
+            - name: FLASHINFER_WORKSPACE_DIR
+              value: /tmp/flashinfer
+            - name: VLLM_CACHE_ROOT
+              value: /tmp/vllm_cache
+            - name: HOME
+              value: /tmp
+          ports:
+            - containerPort: 8080
+              protocol: TCP
+          resources:
+            limits:
+              cpu: '4'
+              memory: 20Gi
+              nvidia.com/gpu: '1'
+            requests:
+              cpu: '1'
+              memory: 12Gi
+              nvidia.com/gpu: '1'
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 60
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 120
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 5
+          volumeMounts:
+            - name: shm
+              mountPath: /dev/shm
+            - name: model-cache
+              mountPath: /tmp/hf_cache
+      volumes:
+        - name: shm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 2Gi
+        - name: model-cache
+          emptyDir: {}
+      nodeSelector:
+        beta.kubernetes.io/instance-type: g6e.4xlarge
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Exists
+          effect: NoSchedule
+  strategy:
+    type: RollingUpdate
+  progressDeadlineSeconds: 900
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: translate-service
+  labels:
+    app: translate-service
+spec:
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: 8080
+  type: ClusterIP
+  selector:
+    app: translate-service
+{{- end }}

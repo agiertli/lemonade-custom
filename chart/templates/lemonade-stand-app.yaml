@@ -46,7 +46,7 @@ spec:
     spec:
       containers:
         - name: lemonade-stand
-          image: quay.io/ckavili/lemon-fastapi:1.0.23
+          image: quay.io/agiertli/lemon-fastapi-translate:1.0.12
           imagePullPolicy: Always
           ports:
             - containerPort: 8080
@@ -67,6 +67,10 @@ spec:
                   name: lemonade-stand-secrets
                   key: vllm-api-key
                   optional: true
+            - name: ENABLE_TRANSLATION
+              value: "{{ .Values.translateService.enabled | default false }}"
+            - name: TRANSLATE_SERVICE_URL
+              value: "http://translate-service:8080"
           volumeMounts:
             - name: system-prompt
               mountPath: /system-prompt

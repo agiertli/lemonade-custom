@@ -30,3 +30,8 @@ detectors:
         cpu: '4'
         memory: 12Gi
 
+# Translation service (TranslateGemma)
+translateService:
+  enabled: false
+  hfToken: ""
+

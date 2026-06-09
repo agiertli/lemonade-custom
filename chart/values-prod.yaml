@@ -1,34 +1,30 @@
 ---
-# Production configuration
-# Override default values for production deployments
+# Production configuration for Slovak demo (itapa-sk-v2)
+# GPU allocation: 3 LLaMA + 2 TranslateGemma = 5 GPUs (2 spare)
+# HAP and PI detectors run on CPU to free GPUs for throughput
 
-# Replica configuration - higher replicas for production
-# Note: For InferenceServices, this sets BOTH min and max replicas
-# to ensure pods are pre-warmed and ready for demos
-# Tuned for 7 GPU nodes with g6.4xlarge (1 GPU, 64GB RAM per node)
 replicas:
   llama: 3
   hap: 2
   promptInjection: 2
 
-# Detector configuration - GPU enabled for production
 detectors:
   hap:
-    useGpu: true
+    useGpu: false
     resources:
       requests:
-        cpu: '1'
+        cpu: '2'
         memory: 4Gi
       limits:
-        cpu: '2'
+        cpu: '4'
         memory: 8Gi
 
   promptInjection:
-    useGpu: true
+    useGpu: false
     resources:
       requests:
-        cpu: '4'
-        memory: 16Gi
+        cpu: '2'
+        memory: 4Gi
       limits:
-        cpu: '8'
-        memory: 24Gi
+        cpu: '4'
+        memory: 8Gi
