@@ -71,6 +71,10 @@ spec:
               value: "{{ .Values.translateService.enabled | default false }}"
             - name: TRANSLATE_SERVICE_URL
               value: "http://translate-service:8080"
+            - name: TARGET_LANGUAGE
+              value: "{{ .Values.language.code | default "sk" }}"
+            - name: TARGET_LANGUAGE_NAME
+              value: "{{ .Values.language.name | default "slovensky" }}"
           volumeMounts:
             - name: system-prompt
               mountPath: /system-prompt

@@ -53,7 +53,7 @@ spec:
               protocol: TCP
           imagePullPolicy: Always
           terminationMessagePolicy: File
-          image: 'quay.io/agiertli/lingua-language-detector-sk:1.0.0'
+          image: '{{ .Values.language.linguaImage | default "quay.io/agiertli/lingua-language-detector-sk:1.0.0" }}'
       restartPolicy: Always
       terminationGracePeriodSeconds: 30
       dnsPolicy: ClusterFirst

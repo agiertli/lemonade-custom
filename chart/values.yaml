@@ -35,3 +35,9 @@ translateService:
   enabled: false
   hfToken: ""
 
+# Language configuration
+language:
+  code: "sk"
+  name: "slovensky"
+  linguaImage: "quay.io/agiertli/lingua-language-detector-sk:1.0.0"
+

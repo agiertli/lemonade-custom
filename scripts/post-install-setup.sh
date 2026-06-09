@@ -40,6 +40,9 @@ echo "---------------------------------------------"
 
 GPU_DESIRED_REPLICAS=$GPU_REPLICAS
 GPU_INSTANCE_TYPE="${GPU_INSTANCE_TYPE:-g5.4xlarge}"
+TRANSLATION_SERVICE="${TRANSLATION_SERVICE:-false}"
+TRANSLATE_GPU_INSTANCE_TYPE="${TRANSLATE_GPU_INSTANCE_TYPE:-g6e.4xlarge}"
+TRANSLATE_GPU_REPLICAS="${TRANSLATE_GPU_REPLICAS:-2}"
 
 echo "Target GPU instance type: $GPU_INSTANCE_TYPE"
 
@@ -88,6 +91,62 @@ else
         echo "WARNING: Expected at least $GPU_DESIRED_REPLICAS GPUs, but found $GPU_COUNT"
         echo "The demo may not have sufficient GPU resources."
     fi
+fi
+
+# Step 1b: Provision g6e machineset for TranslateGemma (if translation enabled)
+if [ "$TRANSLATION_SERVICE" = "true" ]; then
+    echo ""
+    echo "Step 1b: Provisioning $TRANSLATE_GPU_INSTANCE_TYPE machineset for TranslateGemma..."
+    echo "---------------------------------------------"
+
+    G6E_MACHINESET=$(oc get machineset -n openshift-machine-api -o json | \
+      jq -r --arg instance_type "$TRANSLATE_GPU_INSTANCE_TYPE" \
+      '.items[] | select(.spec.template.spec.providerSpec.value.instanceType == $instance_type) | .metadata.name' | head -1)
+
+    if [ -n "$G6E_MACHINESET" ]; then
+        CURRENT_REPLICAS=$(oc get machineset "$G6E_MACHINESET" -n openshift-machine-api -o jsonpath='{.spec.replicas}')
+        echo "Found existing $TRANSLATE_GPU_INSTANCE_TYPE machineset: $G6E_MACHINESET (replicas: $CURRENT_REPLICAS)"
+        if [ "$CURRENT_REPLICAS" -lt "$TRANSLATE_GPU_REPLICAS" ]; then
+            echo "Scaling $G6E_MACHINESET to $TRANSLATE_GPU_REPLICAS replicas..."
+            oc scale machineset "$G6E_MACHINESET" -n openshift-machine-api --replicas="$TRANSLATE_GPU_REPLICAS"
+            echo "✓ Machineset scaled"
+        else
+            echo "✓ Machineset already has sufficient replicas"
+        fi
+    else
+        echo "No $TRANSLATE_GPU_INSTANCE_TYPE machineset found, creating from existing GPU machineset template..."
+        SOURCE_MACHINESET=$(oc get machineset -n openshift-machine-api -o json | \
+          jq -r '.items[] | select(.metadata.name | contains("gpu")) | .metadata.name' | head -1)
+
+        if [ -z "$SOURCE_MACHINESET" ]; then
+            echo "ERROR: No GPU machineset found to use as template for $TRANSLATE_GPU_INSTANCE_TYPE"
+            echo "Please create a $TRANSLATE_GPU_INSTANCE_TYPE machineset manually."
+        else
+            CLUSTER_ID=$(oc get machineset "$SOURCE_MACHINESET" -n openshift-machine-api -o jsonpath='{.spec.template.spec.providerSpec.value.tags[0].value}' 2>/dev/null || \
+              oc get infrastructure cluster -o jsonpath='{.status.infrastructureName}' 2>/dev/null || echo "")
+            NEW_MS_NAME="${CLUSTER_ID:+${CLUSTER_ID}-}translate-gpu"
+
+            echo "Creating $TRANSLATE_GPU_INSTANCE_TYPE machineset '$NEW_MS_NAME' from template '$SOURCE_MACHINESET'..."
+            oc get machineset "$SOURCE_MACHINESET" -n openshift-machine-api -o json | \
+              jq --arg name "$NEW_MS_NAME" \
+                 --arg instance_type "$TRANSLATE_GPU_INSTANCE_TYPE" \
+                 --argjson replicas "$TRANSLATE_GPU_REPLICAS" '
+                del(.metadata.uid, .metadata.resourceVersion, .metadata.creationTimestamp, .metadata.generation, .status) |
+                .metadata.name = $name |
+                .spec.replicas = $replicas |
+                .spec.selector.matchLabels["machine.openshift.io/cluster-api-machineset"] = $name |
+                .spec.template.metadata.labels["machine.openshift.io/cluster-api-machineset"] = $name |
+                .spec.template.spec.providerSpec.value.instanceType = $instance_type
+              ' | oc apply -f -
+            echo "✓ $TRANSLATE_GPU_INSTANCE_TYPE machineset created with $TRANSLATE_GPU_REPLICAS replicas"
+        fi
+    fi
+
+    echo "Waiting for $TRANSLATE_GPU_INSTANCE_TYPE nodes to be ready..."
+    wait_for "$TRANSLATE_GPU_INSTANCE_TYPE nodes" \
+        "[ \$(oc get nodes -o json | jq '[.items[] | select(.metadata.labels[\"beta.kubernetes.io/instance-type\"] == \"$TRANSLATE_GPU_INSTANCE_TYPE\") | select(.status.conditions[] | select(.type == \"Ready\" and .status == \"True\"))] | length') -ge $TRANSLATE_GPU_REPLICAS ]" \
+        900
+    echo "✓ $TRANSLATE_GPU_INSTANCE_TYPE nodes ready for TranslateGemma"
 fi
 
 # Step 2: Enable User Workload Monitoring

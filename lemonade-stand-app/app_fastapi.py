@@ -44,6 +44,8 @@ VLLM_MODEL = os.getenv("VLLM_MODEL", "llama32")
 VLLM_API_KEY = os.getenv("VLLM_API_KEY", "")
 TRANSLATE_SERVICE_URL = os.getenv("TRANSLATE_SERVICE_URL", "http://translate-service:8080")
 ENABLE_TRANSLATION = os.getenv("ENABLE_TRANSLATION", "false").lower() == "true"
+TARGET_LANGUAGE = os.getenv("TARGET_LANGUAGE", "sk")
+TARGET_LANGUAGE_NAME = os.getenv("TARGET_LANGUAGE_NAME", "slovensky")
 
 # Detect if running in-cluster (internal service) vs external (route)
 IS_INTERNAL_SERVICE = ORCHESTRATOR_HOST not in ("localhost", "") and ORCHESTRATOR_PORT not in ("443", "80")
@@ -324,6 +326,8 @@ async def lifespan(app: FastAPI):
 
     logger.info(f"API URL: {API_URL}")
     logger.info(f"Model: {VLLM_MODEL}")
+    if ENABLE_TRANSLATION:
+        logger.info(f"Translation: enabled (language={TARGET_LANGUAGE}, name={TARGET_LANGUAGE_NAME})")
 
     yield
 
@@ -385,14 +389,14 @@ async def process_chat(message: str) -> AsyncGenerator[dict, None]:
             await metrics.add_detections([{"results": [{"detector_id": "language_detection", "score": 1.0}]}], "input")
             yield {
                 "type": "error",
-                "message": "🇸🇰 Viem komunikovať iba po slovensky. Preformulujte prosím svoju správu po slovensky.",
+                "message": f"🇸🇰 Viem komunikovať iba po {TARGET_LANGUAGE_NAME}. Preformulujte prosím svoju správu po {TARGET_LANGUAGE_NAME}.",
                 "detector_type": "language"
             }
             return
         t0 = _time.monotonic()
-        message = await translate_text(message, "sk", "en")
+        message = await translate_text(message, TARGET_LANGUAGE, "en")
         t_translate_in = _time.monotonic() - t0
-        logger.info(f"[TRACE] SK→EN translation: {t_translate_in:.2f}s | Input: {repr(original_message)} | Output: {repr(message)}")
+        logger.info(f"[TRACE] {TARGET_LANGUAGE.upper()}→EN translation: {t_translate_in:.2f}s | Input: {repr(original_message)} | Output: {repr(message)}")
 
     # LOCAL REGEX CHECK: Pre-filter before sending to orchestrator
     # This reduces load on the orchestrator by catching obvious violations locally
@@ -605,9 +609,9 @@ async def process_chat(message: str) -> AsyncGenerator[dict, None]:
 
                     if full_response:
                         t0 = _time.monotonic()
-                        translated = await translate_text(full_response.strip(), "en", "sk")
+                        translated = await translate_text(full_response.strip(), "en", TARGET_LANGUAGE)
                         t_translate_out = _time.monotonic() - t0
-                        logger.info(f"[TRACE] EN→SK translation: {t_translate_out:.2f}s | EN: {repr(full_response.strip()[:100])} | SK: {repr(translated[:100])}")
+                        logger.info(f"[TRACE] EN→{TARGET_LANGUAGE.upper()} translation: {t_translate_out:.2f}s | EN: {repr(full_response.strip()[:100])} | {TARGET_LANGUAGE.upper()}: {repr(translated[:100])}")
                         # Simulate streaming by sending word-by-word
                         words = translated.split(' ')
                         for i, word in enumerate(words):
@@ -686,9 +690,9 @@ async def process_chat(message: str) -> AsyncGenerator[dict, None]:
 
                     if ENABLE_TRANSLATION:
                         t0 = _time.monotonic()
-                        translated = await translate_text(full_response.strip(), "en", "sk")
+                        translated = await translate_text(full_response.strip(), "en", TARGET_LANGUAGE)
                         t_translate_out = _time.monotonic() - t0
-                        logger.info(f"[TRACE] EN→SK translation: {t_translate_out:.2f}s | EN: {repr(full_response.strip()[:100])} | SK: {repr(translated[:100])}")
+                        logger.info(f"[TRACE] EN→{TARGET_LANGUAGE.upper()} translation: {t_translate_out:.2f}s | EN: {repr(full_response.strip()[:100])} | {TARGET_LANGUAGE.upper()}: {repr(translated[:100])}")
                         yield {"type": "chunk", "content": translated}
 
                     if last_finish_reason == "length":

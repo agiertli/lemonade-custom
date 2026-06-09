@@ -13,6 +13,7 @@ cd "$REPO_ROOT"
 
 NAMESPACE="${NAMESPACE:-lemonade-stand-assistant}"
 PROD_MODE="${PROD_MODE:-false}"
+TRANSLATION_SERVICE="${TRANSLATION_SERVICE:-false}"
 
 # Set defaults based on mode
 if [ "$PROD_MODE" = "true" ]; then
@@ -23,6 +24,21 @@ else
     ENABLE_GPU_DETECTORS="${ENABLE_GPU_DETECTORS:-true}"
     GPU_REPLICAS="${GPU_REPLICAS:-3}"
     GPU_INSTANCE_TYPE="${GPU_INSTANCE_TYPE:-g5.4xlarge}"
+fi
+
+# Translation service configuration
+if [ "$TRANSLATION_SERVICE" = "true" ]; then
+    HF_TOKEN_FILE="${HF_TOKEN_FILE:-$HOME/.cache/huggingface/token}"
+    if [ -z "${HF_TOKEN:-}" ]; then
+        if [ -f "$HF_TOKEN_FILE" ]; then
+            HF_TOKEN=$(cat "$HF_TOKEN_FILE")
+            echo "✓ HuggingFace token loaded from $HF_TOKEN_FILE"
+        else
+            echo "ERROR: TRANSLATION_SERVICE=true but no HF_TOKEN set and $HF_TOKEN_FILE not found."
+            echo "Set HF_TOKEN env var or run: huggingface-cli login"
+            exit 1
+        fi
+    fi
 fi
 
 echo "========================================="
@@ -40,6 +56,7 @@ echo "Configuration:"
 echo "  Repository Root: $REPO_ROOT"
 echo "  Namespace: $NAMESPACE"
 echo "  Production Mode: $PROD_MODE"
+echo "  Translation Service: $TRANSLATION_SERVICE"
 echo "  GPU for Detectors: $ENABLE_GPU_DETECTORS"
 echo "  GPU Replicas: $GPU_REPLICAS"
 echo "  GPU Instance Type: $GPU_INSTANCE_TYPE"
@@ -48,6 +65,7 @@ echo ""
 # Export for post-install-setup.sh
 export GPU_REPLICAS
 export GPU_INSTANCE_TYPE
+export TRANSLATION_SERVICE
 
 # Step 1: Create namespace
 echo "Step 1: Creating namespace..."
@@ -79,7 +97,12 @@ elif [ "$ENABLE_GPU_DETECTORS" = "true" ]; then
     HELM_ARGS="--set detectors.hap.useGpu=true --set detectors.promptInjection.useGpu=true"
 fi
 
-helm install lemonade-stand-assistant ./chart --namespace $NAMESPACE $HELM_ARGS
+if [ "$TRANSLATION_SERVICE" = "true" ]; then
+    echo "Enabling translation service (TranslateGemma)..."
+    HELM_ARGS="$HELM_ARGS --set translateService.enabled=true --set translateService.hfToken=$HF_TOKEN"
+fi
+
+helm upgrade --install lemonade-stand-assistant ./chart --namespace $NAMESPACE $HELM_ARGS
 
 echo "✓ Application installed"
 
@@ -224,6 +247,11 @@ GRAFANA_URL=$(oc get route grafana-route -n $NAMESPACE -o jsonpath='{.spec.host}
 echo "  https://$GRAFANA_URL"
 echo "  (Login with OpenShift credentials)"
 echo ""
+if [ "$TRANSLATION_SERVICE" = "true" ]; then
+    echo "Translation Service:"
+    echo "  oc get pods -l app=translate-service -n $NAMESPACE"
+    echo ""
+fi
 echo "Monitor deployment status:"
 echo "  oc get pods -n $NAMESPACE"
 echo ""
