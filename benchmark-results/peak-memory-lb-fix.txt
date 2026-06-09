@@ -1,0 +1,16 @@
+chunker-service-5dfd5499b4-d8z68                          9m      93Mi     
+grafana-deployment-6848798d88-vpb22                       4m      186Mi    
+grafana-operator-controller-manager-v5-7594fd7847-dvmdc   2m      31Mi     
+guardrails-detector-ibm-hap-predictor-6759db89f-8r2xl     3999m   3601Mi   
+guardrails-detector-ibm-hap-predictor-6759db89f-gjn4l     2813m   2161Mi   
+guardrails-orchestrator-7887b5b86f-cf9qw                  17m     204Mi    
+lemonade-stand-6897b8c5c9-kw6xx                           14m     50Mi     
+lingua-detector-755dd59dd8-f97ts                          7m      1290Mi   
+llama-32-predictor-6f5cd9954c-6f2mw                       1008m   1924Mi   
+llama-32-predictor-6f5cd9954c-9vd8b                       7m      8388Mi   
+llama-32-predictor-6f5cd9954c-jpfkr                       7m      9365Mi   
+minio-storage-guardrail-detectors-bbb95897c-2484g         1m      92Mi     
+prompt-injection-detector-predictor-6cf644fd55-bllk9      557m    4665Mi   
+prompt-injection-detector-predictor-6cf644fd55-m62d9      600m    3548Mi   
+translate-service-547fbd4785-49zrl                        1724m   4726Mi   
+translate-service-547fbd4785-vw897                        1516m   4304Mi   

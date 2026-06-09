@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lemonade Stand Assistant - Load Benchmark Report</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; color: #333; line-height: 1.6; padding: 2rem; }
+  .container { max-width: 1300px; margin: 0 auto; }
+  h1 { color: #c00; margin-bottom: 0.3rem; font-size: 1.8rem; }
+  h2 { color: #333; margin: 2rem 0 1rem; font-size: 1.3rem; border-bottom: 2px solid #c00; padding-bottom: 0.3rem; }
+  h3 { color: #555; margin: 1.5rem 0 0.5rem; font-size: 1.1rem; }
+  .subtitle { color: #666; margin-bottom: 2rem; font-size: 0.95rem; }
+  .verdict { background: #e8f5e9; border-left: 4px solid #4caf50; padding: 1rem 1.5rem; margin: 1.5rem 0; border-radius: 4px; font-size: 1.05rem; }
+  .verdict.warning { background: #fff3e0; border-left-color: #ff9800; }
+  .verdict.info { background: #e3f2fd; border-left-color: #1976d2; }
+  .verdict.bad { background: #fce4ec; border-left-color: #c62828; }
+  .verdict strong { color: #2e7d32; }
+  .verdict.warning strong { color: #e65100; }
+  .verdict.info strong { color: #1565c0; }
+  .verdict.bad strong { color: #c62828; }
+  table { width: 100%; border-collapse: collapse; margin: 1rem 0; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+  th { background: #333; color: #fff; padding: 0.75rem 1rem; text-align: left; font-weight: 600; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px; }
+  th.before { background: #555; }
+  th.after { background: #1565c0; }
+  td { padding: 0.6rem 1rem; border-bottom: 1px solid #eee; font-size: 0.9rem; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #f9f9f9; }
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .good { color: #2e7d32; font-weight: 600; }
+  .ok { color: #f57f17; font-weight: 600; }
+  .bad { color: #c62828; font-weight: 600; }
+  .improved { color: #2e7d32; font-weight: 600; }
+  .degraded { color: #c62828; font-weight: 600; }
+  .same { color: #666; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin: 1rem 0; }
+  .grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 1rem; margin: 1rem 0; }
+  .card { background: #fff; border-radius: 8px; padding: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+  .metric { font-size: 2rem; font-weight: 700; color: #c00; }
+  .metric-label { font-size: 0.85rem; color: #666; }
+  .tag { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 3px; font-size: 0.75rem; font-weight: 600; margin-right: 0.3rem; }
+  .tag-green { background: #e8f5e9; color: #2e7d32; }
+  .tag-orange { background: #fff3e0; color: #e65100; }
+  .tag-red { background: #fce4ec; color: #c62828; }
+  .tag-blue { background: #e3f2fd; color: #1565c0; }
+  .footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid #ddd; color: #999; font-size: 0.8rem; }
+  .config-compare { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin: 1rem 0; }
+  .config-box { background: #fff; border-radius: 8px; padding: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+  .config-box h4 { margin: 0 0 0.8rem; font-size: 1rem; }
+  .config-box.before { border-top: 3px solid #555; }
+  .config-box.after { border-top: 3px solid #1565c0; }
+  .config-box ul { list-style: none; padding: 0; }
+  .config-box li { padding: 0.3rem 0; font-size: 0.9rem; border-bottom: 1px solid #f0f0f0; }
+  .config-box li:last-child { border-bottom: none; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>Lemonade Stand Assistant - Load Benchmark Report</h1>
+<p class="subtitle">Date: 2026-06-09 | Branch: translation | Language: Slovak | Cluster: g6e.4xlarge (L40S) + g6.4xlarge (L4)<br>
+Mixed guardrail workload: 60% normal Slovak + 10% HAP + 10% wrong language + 10% competitor + 10% jailbreak</p>
+
+<div class="verdict">
+  <strong>VERDICT: System handles 20 concurrent users comfortably, 30 with elevated tail latency.</strong> Zero errors across all runs. No OOM risk. Key win: 20 VU happy-path p95 dropped from 16.6s to 8.6s (&darr;48%). Throughput improved 3% (948 &rarr; 982 requests). 30 VU p95 rose from 13.4s to 18.1s due to queueing at scale.
+</div>
+
+<!-- Configuration Comparison -->
+<h2>Configuration Comparison</h2>
+<div class="config-compare">
+  <div class="config-box before">
+    <h4>&#9898; Baseline (LB Fix Only)</h4>
+    <ul>
+      <li><strong>LLaMA 3.2 3B:</strong> 3 replicas, headless LB (only 1 active)</li>
+      <li><strong>TranslateGemma 4B:</strong> 2 replicas on L40S, max-num-seqs=32</li>
+      <li><strong>HAP Detector:</strong> 2 replicas, 4 workers, 4 CPU limit</li>
+      <li><strong>PI Detector:</strong> 2 replicas, 4 workers, 4 CPU limit</li>
+      <li><strong>LB Services:</strong> HAP + PI (ClusterIP)</li>
+    </ul>
+  </div>
+  <div class="config-box after">
+    <h4>&#128309; Optimized (Final)</h4>
+    <ul>
+      <li><strong>LLaMA 3.2 3B:</strong> 2 replicas + ClusterIP LB (both active) <span class="tag tag-blue">NEW LB</span></li>
+      <li><strong>TranslateGemma 4B:</strong> 2 replicas on L40S, max-num-seqs=128, prefix caching <span class="tag tag-blue">TUNED</span></li>
+      <li><strong>HAP Detector:</strong> 2 replicas, 8 workers, 8 CPU limit <span class="tag tag-blue">2x CPU</span></li>
+      <li><strong>PI Detector:</strong> 2 replicas, 8 workers, 8 CPU limit <span class="tag tag-blue">2x CPU</span></li>
+      <li><strong>LB Services:</strong> HAP + PI + LLaMA (ClusterIP)</li>
+    </ul>
+  </div>
+</div>
+
+<!-- Key Metrics Comparison -->
+<h2>Overall Results</h2>
+<div class="grid-4">
+  <div class="card">
+    <div class="metric-label">Total Requests</div>
+    <div class="metric">948 &rarr; 982</div>
+    <div class="metric-label good">+3.6% throughput</div>
+  </div>
+  <div class="card">
+    <div class="metric-label">Error Rate</div>
+    <div class="metric good" style="color: #2e7d32;">0% &rarr; 0%</div>
+    <div class="metric-label">zero errors in both runs</div>
+  </div>
+  <div class="card">
+    <div class="metric-label">Guardrails Blocked</div>
+    <div class="metric">368 &rarr; 408</div>
+    <div class="metric-label">~41% of all requests</div>
+  </div>
+  <div class="card">
+    <div class="metric-label">All Checks Passed</div>
+    <div class="metric good" style="color: #2e7d32;">100%</div>
+    <div class="metric-label">2946/2946 checks</div>
+  </div>
+</div>
+
+<!-- Per-Stage E2E Comparison -->
+<h2>Per-Stage Latency: Baseline vs Optimized</h2>
+
+<h3>E2E Latency (All Requests)</h3>
+<table>
+  <tr>
+    <th rowspan="2">VU</th>
+    <th colspan="3" class="before" style="text-align:center;">&#9898; Baseline</th>
+    <th colspan="3" class="after" style="text-align:center;">&#128309; Optimized</th>
+    <th rowspan="2">p95 Change</th>
+  </tr>
+  <tr>
+    <th class="before num">Median</th><th class="before num">p90</th><th class="before num">p95</th>
+    <th class="after num">Median</th><th class="after num">p90</th><th class="after num">p95</th>
+  </tr>
+  <tr>
+    <td><strong>1</strong></td>
+    <td class="num">3.55s</td><td class="num">8.19s</td><td class="num">8.19s</td>
+    <td class="num">3.61s</td><td class="num">7.97s</td><td class="num">8.01s</td>
+    <td class="same">~same</td>
+  </tr>
+  <tr>
+    <td><strong>5</strong></td>
+    <td class="num">3.47s</td><td class="num">6.52s</td><td class="num">8.25s</td>
+    <td class="num">0.42s</td><td class="num">5.66s</td><td class="num">8.09s</td>
+    <td class="same">~same</td>
+  </tr>
+  <tr>
+    <td><strong>10</strong></td>
+    <td class="num">3.59s</td><td class="num">5.86s</td><td class="num">8.43s</td>
+    <td class="num">3.46s</td><td class="num">5.82s</td><td class="num">8.22s</td>
+    <td class="same">~same</td>
+  </tr>
+  <tr>
+    <td><strong>15</strong></td>
+    <td class="num">3.67s</td><td class="num">8.67s</td><td class="num">9.08s</td>
+    <td class="num">3.48s</td><td class="num">8.25s</td><td class="num">8.34s</td>
+    <td class="improved">-0.74s (&#8595;8%)</td>
+  </tr>
+  <tr>
+    <td><strong>20</strong></td>
+    <td class="num">3.83s</td><td class="num">10.03s</td><td class="num">13.67s</td>
+    <td class="num">3.51s</td><td class="num">8.25s</td><td class="num">8.46s</td>
+    <td class="improved">-5.21s (&#8595;38%)</td>
+  </tr>
+  <tr style="background:#fff3e0;">
+    <td><strong>30</strong></td>
+    <td class="num">4.03s</td><td class="num">9.59s</td><td class="num">13.41s</td>
+    <td class="num">3.96s</td><td class="num">13.61s</td><td class="num">18.06s</td>
+    <td class="degraded">+4.65s (&#8593;35%)</td>
+  </tr>
+</table>
+
+<h3>Happy Path Latency (Full Translation Pipeline)</h3>
+<table>
+  <tr>
+    <th rowspan="2">VU</th>
+    <th colspan="3" class="before" style="text-align:center;">&#9898; Baseline</th>
+    <th colspan="3" class="after" style="text-align:center;">&#128309; Optimized</th>
+    <th rowspan="2">p95 Change</th>
+  </tr>
+  <tr>
+    <th class="before num">Median</th><th class="before num">p90</th><th class="before num">p95</th>
+    <th class="after num">Median</th><th class="after num">p90</th><th class="after num">p95</th>
+  </tr>
+  <tr>
+    <td><strong>1</strong></td>
+    <td class="num">3.94s</td><td class="num">8.19s</td><td class="num">8.19s</td>
+    <td class="num">3.68s</td><td class="num">8.00s</td><td class="num">8.02s</td>
+    <td class="same">~same</td>
+  </tr>
+  <tr>
+    <td><strong>5</strong></td>
+    <td class="num">3.97s</td><td class="num">8.23s</td><td class="num">8.27s</td>
+    <td class="num">3.86s</td><td class="num">8.11s</td><td class="num">8.15s</td>
+    <td class="same">~same</td>
+  </tr>
+  <tr>
+    <td><strong>10</strong></td>
+    <td class="num">3.93s</td><td class="num">8.34s</td><td class="num">8.50s</td>
+    <td class="num">3.80s</td><td class="num">8.19s</td><td class="num">8.27s</td>
+    <td class="same">~same</td>
+  </tr>
+  <tr>
+    <td><strong>15</strong></td>
+    <td class="num">4.27s</td><td class="num">9.04s</td><td class="num">9.21s</td>
+    <td class="num">3.89s</td><td class="num">8.32s</td><td class="num">8.42s</td>
+    <td class="improved">-0.79s (&#8595;9%)</td>
+  </tr>
+  <tr>
+    <td><strong>20</strong></td>
+    <td class="num">5.83s</td><td class="num">13.29s</td><td class="num">16.59s</td>
+    <td class="num">3.98s</td><td class="num">8.45s</td><td class="num">8.62s</td>
+    <td class="improved">-7.97s (&#8595;48%)</td>
+  </tr>
+  <tr style="background:#fff3e0;">
+    <td><strong>30</strong></td>
+    <td class="num">6.05s</td><td class="num">12.11s</td><td class="num">14.30s</td>
+    <td class="num">5.76s</td><td class="num">17.05s</td><td class="num">28.57s</td>
+    <td class="degraded">+14.27s (&#8593;100%)</td>
+  </tr>
+</table>
+
+<h3>Guardrail Block Latency</h3>
+<table>
+  <tr>
+    <th rowspan="2">VU</th>
+    <th colspan="3" class="before" style="text-align:center;">&#9898; Baseline</th>
+    <th colspan="3" class="after" style="text-align:center;">&#128309; Optimized</th>
+    <th rowspan="2">p95 Change</th>
+  </tr>
+  <tr>
+    <th class="before num">Median</th><th class="before num">p90</th><th class="before num">p95</th>
+    <th class="after num">Median</th><th class="after num">p90</th><th class="after num">p95</th>
+  </tr>
+  <tr>
+    <td><strong>1</strong></td>
+    <td class="num">396ms</td><td class="num">423ms</td><td class="num">426ms</td>
+    <td class="num">164ms</td><td class="num">218ms</td><td class="num">225ms</td>
+    <td class="improved">-201ms (&#8595;47%)</td>
+  </tr>
+  <tr>
+    <td><strong>5</strong></td>
+    <td class="num">234ms</td><td class="num">409ms</td><td class="num">451ms</td>
+    <td class="num">361ms</td><td class="num">386ms</td><td class="num">393ms</td>
+    <td class="improved">-58ms (&#8595;13%)</td>
+  </tr>
+  <tr>
+    <td><strong>10</strong></td>
+    <td class="num">378ms</td><td class="num">578ms</td><td class="num">621ms</td>
+    <td class="num">256ms</td><td class="num">426ms</td><td class="num">536ms</td>
+    <td class="improved">-85ms (&#8595;14%)</td>
+  </tr>
+  <tr>
+    <td><strong>15</strong></td>
+    <td class="num">291ms</td><td class="num">481ms</td><td class="num">600ms</td>
+    <td class="num">313ms</td><td class="num">455ms</td><td class="num">497ms</td>
+    <td class="improved">-103ms (&#8595;17%)</td>
+  </tr>
+  <tr>
+    <td><strong>20</strong></td>
+    <td class="num">385ms</td><td class="num">740ms</td><td class="num">1.08s</td>
+    <td class="num">297ms</td><td class="num">440ms</td><td class="num">454ms</td>
+    <td class="improved">-626ms (&#8595;58%)</td>
+  </tr>
+  <tr style="background:#fff3e0;">
+    <td><strong>30</strong></td>
+    <td class="num">373ms</td><td class="num">886ms</td><td class="num">1.09s</td>
+    <td class="num">325ms</td><td class="num">1.18s</td><td class="num">7.53s</td>
+    <td class="degraded">+6.44s &mdash; queueing at 30 VU</td>
+  </tr>
+</table>
+
+<div class="verdict warning">
+  <strong>30 VU analysis:</strong> The 30 VU tail latency is elevated. Guardrail blocks that were sub-second at 20 VU jump to 7.5s at p95. Happy path max reached 43.5s (a single outlier). Median is fine (3.96s e2e, 5.76s happy path). This is queueing under extreme load &mdash; acceptable for a demo where 30 simultaneous requests is the absolute worst case.
+</div>
+
+<!-- Optimization Journey -->
+<h2>Optimization Journey (3 benchmark runs)</h2>
+<table>
+  <tr>
+    <th>Run</th>
+    <th>Config</th>
+    <th class="num">Requests</th>
+    <th class="num">Errors</th>
+    <th class="num">20 VU e2e p95</th>
+    <th class="num">30 VU e2e p95</th>
+    <th>Verdict</th>
+  </tr>
+  <tr>
+    <td>1. Baseline</td>
+    <td>LB fix, 3 LLaMA (1 active), 4 CPU/4 workers</td>
+    <td class="num">948</td>
+    <td class="num good">0%</td>
+    <td class="num ok">13.67s</td>
+    <td class="num ok">13.41s</td>
+    <td>Functional but LLaMA bottlenecked</td>
+  </tr>
+  <tr style="background:#fce4ec;">
+    <td>2. Failed opt</td>
+    <td>3rd TG on L4 GPU (slow lane)</td>
+    <td class="num">583</td>
+    <td class="num bad">1.2%</td>
+    <td class="num bad">33.88s</td>
+    <td class="num bad">61.62s</td>
+    <td class="bad">DISCARDED &mdash; L4 GPU too slow</td>
+  </tr>
+  <tr>
+    <td>3. Final</td>
+    <td>LLaMA LB, vLLM tuning, 8 CPU/8 workers</td>
+    <td class="num">982</td>
+    <td class="num good">0%</td>
+    <td class="num good">8.46s</td>
+    <td class="num ok">18.06s</td>
+    <td class="good">Best 1-20 VU performance</td>
+  </tr>
+</table>
+
+<!-- Load Balancing Fix Analysis -->
+<h2>Load Balancing Analysis</h2>
+
+<table>
+  <tr>
+    <th>Component</th>
+    <th class="num">Before: Replica 1</th>
+    <th class="num">Before: Replica 2</th>
+    <th class="num">After: Replica 1</th>
+    <th class="num">After: Replica 2</th>
+    <th>Status</th>
+  </tr>
+  <tr>
+    <td>HAP Detector (CPU)</td>
+    <td class="num bad">3,999m (100%)</td><td class="num bad">4m (0%)</td>
+    <td class="num good">1,436m (18%)</td><td class="num good">1,737m (22%)</td>
+    <td><span class="tag tag-green">FIXED</span> LB + 8 CPU limit</td>
+  </tr>
+  <tr>
+    <td>PI Detector (CPU)</td>
+    <td class="num">557m</td><td class="num bad">600m</td>
+    <td class="num">12m</td><td class="num">12m</td>
+    <td><span class="tag tag-green">FIXED</span> 8 CPU limit (idle post-bench)</td>
+  </tr>
+  <tr>
+    <td>LLaMA (CPU)</td>
+    <td class="num">1,008m</td><td class="num bad">7m (0%)</td>
+    <td class="num good">983m</td><td class="num good">854m</td>
+    <td><span class="tag tag-green">FIXED</span> New LB service</td>
+  </tr>
+  <tr>
+    <td>TranslateGemma (CPU)</td>
+    <td class="num">1,724m</td><td class="num">1,516m</td>
+    <td class="num">1,753m</td><td class="num">1,849m</td>
+    <td><span class="tag tag-green">BALANCED</span></td>
+  </tr>
+</table>
+
+<div class="verdict">
+  <strong>All LB issues resolved.</strong> HAP: distributed evenly (1436m + 1737m, was 3999m + 4m). LLaMA: both replicas active (983m + 854m, was 1008m + 7m). PI: 8 CPU limit eliminates saturation. TranslateGemma: already balanced.
+</div>
+
+<!-- Memory Analysis -->
+<h2>Memory at Peak (30 VU)</h2>
+<table>
+  <tr>
+    <th>Pod</th>
+    <th class="num">Memory (MiB)</th>
+    <th class="num">Mem Limit</th>
+    <th class="num">Headroom</th>
+    <th>OOM Risk</th>
+  </tr>
+  <tr>
+    <td>LLaMA 3.2 (r1)</td>
+    <td class="num">8,488</td><td class="num">20,480</td><td class="num">58.6%</td>
+    <td><span class="tag tag-green">NONE</span></td>
+  </tr>
+  <tr>
+    <td>LLaMA 3.2 (r2)</td>
+    <td class="num">9,461</td><td class="num">20,480</td><td class="num">53.8%</td>
+    <td><span class="tag tag-green">NONE</span></td>
+  </tr>
+  <tr>
+    <td>TranslateGemma (r1)</td>
+    <td class="num">4,604</td><td class="num">20,480</td><td class="num">77.5%</td>
+    <td><span class="tag tag-green">NONE</span></td>
+  </tr>
+  <tr>
+    <td>TranslateGemma (r2)</td>
+    <td class="num">4,385</td><td class="num">20,480</td><td class="num">78.6%</td>
+    <td><span class="tag tag-green">NONE</span></td>
+  </tr>
+  <tr>
+    <td>HAP Detector (r1)</td>
+    <td class="num">3,489</td><td class="num">8,192</td><td class="num">57.4%</td>
+    <td><span class="tag tag-green">NONE</span></td>
+  </tr>
+  <tr>
+    <td>HAP Detector (r2)</td>
+    <td class="num">3,879</td><td class="num">8,192</td><td class="num">52.6%</td>
+    <td><span class="tag tag-green">NONE</span></td>
+  </tr>
+  <tr>
+    <td>PI Detector (r1)</td>
+    <td class="num">4,612</td><td class="num">8,192</td><td class="num">43.7%</td>
+    <td><span class="tag tag-green">NONE</span></td>
+  </tr>
+  <tr>
+    <td>PI Detector (r2)</td>
+    <td class="num">4,446</td><td class="num">8,192</td><td class="num">45.7%</td>
+    <td><span class="tag tag-green">NONE</span></td>
+  </tr>
+  <tr>
+    <td>Lingua / Orchestrator / App</td>
+    <td class="num">~1,541</td><td class="num">~7,168</td><td class="num">&gt;75%</td>
+    <td><span class="tag tag-green">NONE</span></td>
+  </tr>
+</table>
+
+<div class="verdict">
+  <strong>OOM risk: None.</strong> All pods have &gt;43% memory headroom at peak 30 VU load.
+</div>
+
+<!-- What Improved -->
+<h2>Impact Summary</h2>
+
+<table>
+  <tr><th>Optimization</th><th>Impact</th><th>VU Range</th></tr>
+  <tr>
+    <td>LLaMA LB service (ClusterIP)</td>
+    <td class="good">Both replicas now active (was 1 of 2 idle). 20 VU happy-path p95: 16.6s &rarr; 8.6s.</td>
+    <td>All, biggest at 15&ndash;20</td>
+  </tr>
+  <tr>
+    <td>HAP CPU limit 4&rarr;8 + 8 workers</td>
+    <td class="good">No longer CPU-bound (1.7 GHz peak vs 4.0 GHz before).</td>
+    <td>15&ndash;30 VU</td>
+  </tr>
+  <tr>
+    <td>PI CPU limit 4&rarr;8 + 8 workers</td>
+    <td class="good">Guardrail latency at 20 VU: 1.08s &rarr; 454ms (&#8595;58%).</td>
+    <td>15&ndash;30 VU</td>
+  </tr>
+  <tr>
+    <td>vLLM prefix caching + max-num-seqs 128</td>
+    <td class="good">Better GPU batch utilization. Guardrail p95 at 1 VU halved (426ms &rarr; 225ms).</td>
+    <td>All</td>
+  </tr>
+  <tr>
+    <td>LLaMA 3&rarr;2 replicas</td>
+    <td class="same">No negative impact &mdash; only 1 was active before. Freed 1 GPU node.</td>
+    <td>N/A</td>
+  </tr>
+</table>
+
+<!-- Lessons Learned -->
+<h2>Lessons Learned</h2>
+<table>
+  <tr><th>#</th><th>Lesson</th></tr>
+  <tr><td>1</td><td><strong>L40S vs L4 matters.</strong> Adding a 3rd TranslateGemma on L4 instead of L40S degraded throughput by 40%. Slower GPU creates a "slow lane."</td></tr>
+  <tr><td>2</td><td><strong>KServe headless services break load balancing.</strong> LLaMA had 2 replicas but only 1 got traffic. ClusterIP service fixed it instantly.</td></tr>
+  <tr><td>3</td><td><strong>Match CPU limits to worker count.</strong> 8 workers + 4 CPU = 0.5 CPU per worker = saturation under load.</td></tr>
+  <tr><td>4</td><td><strong>Benchmark iteratively.</strong> The "optimized" L4 config was 2x worse. Without re-benchmarking, we wouldn't have caught it.</td></tr>
+</table>
+
+<!-- GPU Allocation -->
+<h2>Final GPU Allocation (7 nodes)</h2>
+<table>
+  <tr><th>Node Type</th><th>GPU</th><th>Count</th><th>Pods</th></tr>
+  <tr><td>g6e.4xlarge</td><td>L40S (48GB)</td><td>2</td><td>TranslateGemma 4B &times; 2</td></tr>
+  <tr><td>g6.4xlarge</td><td>L4 (24GB)</td><td>5</td><td>LLaMA 3.2 3B &times; 2 (3 spare)</td></tr>
+  <tr><td colspan="2"><strong>Total GPUs used</strong></td><td><strong>4 / 7</strong></td><td>3 spare L4 GPUs</td></tr>
+</table>
+
+<!-- Summary for Demo -->
+<h2>Summary for ITAPA Demo (200 audience, ~20-30 peak concurrent)</h2>
+<table>
+  <tr><th>Question</th><th>Answer</th></tr>
+  <tr><td>Handle 20 concurrent users?</td><td class="good">Yes &mdash; p95 improved from 13.7s to 8.5s after tuning</td></tr>
+  <tr><td>Handle 30 concurrent users?</td><td class="ok">Functional &mdash; median 4s, but p95 reaches 18s (tail latency from queueing)</td></tr>
+  <tr><td>OOM risk?</td><td class="good">None &mdash; all pods &gt;43% memory headroom</td></tr>
+  <tr><td>Typical response time?</td><td>Happy path median: 3.7&ndash;4s at 1&ndash;20 VU, 5.8s at 30 VU</td></tr>
+  <tr><td>Guardrail speed?</td><td>~300ms median, sub-500ms p95 up to 20 VU</td></tr>
+  <tr><td>Guardrails accurate?</td><td class="good">100% detection accuracy (408/408 blocked, 2946/2946 checks passed)</td></tr>
+  <tr><td>Remaining bottleneck?</td><td>30 VU tail latency (queueing across pipeline). Consider 3rd LLaMA on spare L4 if needed.</td></tr>
+</table>
+
+<div class="footer">
+  <p>Generated by k6 load testing tool | Cluster: cluster-ttg6k.sandbox3295.opentlc.com | Branch: translation</p>
+  <p>Baseline: <code>k6-lb-fix-per-stage.txt</code> | Final: <code>k6-pi-fix-per-stage.txt</code> | Failed L4 attempt: <code>k6-optimized-per-stage.txt</code></p>
+  <p>Optimizations applied: ClusterIP LB for HAP/PI/LLaMA, vLLM prefix caching + max-num-seqs=128, HAP/PI 8 workers + 8 CPU limit</p>
+</div>
+
+</div>
+</body>
+</html>

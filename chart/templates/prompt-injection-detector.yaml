@@ -1,4 +1,19 @@
 ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prompt-injection-detector-lb
+  labels:
+    app.kubernetes.io/managed-by: Helm
+spec:
+  type: ClusterIP
+  selector:
+    app: isvc.prompt-injection-detector-predictor
+  ports:
+    - port: 8000
+      targetPort: 8000
+      protocol: TCP
+---
 apiVersion: serving.kserve.io/v1alpha1
 kind: ServingRuntime
 metadata:
@@ -16,7 +31,7 @@ spec:
   containers:
     - args:
         - '--workers'
-        - '4'
+        - '8'
         - '--host'
         - 0.0.0.0
         - '--port'

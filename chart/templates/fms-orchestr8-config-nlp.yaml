@@ -15,7 +15,7 @@ data:
             port: 8085
     openai: 
       service:
-        hostname: llama-32-predictor
+        hostname: llama-32-lb
         port: 8080
     detectors:
       regex_competitor:
@@ -28,14 +28,14 @@ data:
       hap:
         type: text_contents
         service:
-          hostname: guardrails-detector-ibm-hap-predictor
+          hostname: hap-detector-lb
           port: 8000
         chunker_id: sentence
         default_threshold: 0.5
       prompt_injection:
         type: text_contents
         service:
-          hostname: prompt-injection-detector-predictor
+          hostname: prompt-injection-detector-lb
           port: 8000
         chunker_id: sentence
         default_threshold: 0.5

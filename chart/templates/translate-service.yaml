@@ -17,7 +17,7 @@ metadata:
   labels:
     app: translate-service
 spec:
-  replicas: 2
+  replicas: {{ .Values.translateService.replicas | default 2 }}
   selector:
     matchLabels:
       app: translate-service
@@ -40,7 +40,8 @@ spec:
                 --port=8080 \
                 --served-model-name=translate \
                 --max-model-len=2048 \
-                --max-num-seqs=32 \
+                --max-num-seqs=128 \
+                --enable-prefix-caching \
                 --host=0.0.0.0
           env:
             - name: HF_TOKEN
@@ -101,7 +102,7 @@ spec:
         - name: model-cache
           emptyDir: {}
       nodeSelector:
-        beta.kubernetes.io/instance-type: g6e.4xlarge
+        node.kubernetes.io/instance-type: g6e.4xlarge
       tolerations:
         - key: nvidia.com/gpu
           operator: Exists

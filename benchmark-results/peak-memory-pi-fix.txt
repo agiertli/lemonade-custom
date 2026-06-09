@@ -1,0 +1,16 @@
+NAME                                                      CPU(cores)   MEMORY(bytes)   
+chunker-service-5dfd5499b4-d8z68                          2m           96Mi            
+grafana-deployment-7bf786f75f-kgmct                       3m           522Mi           
+grafana-operator-controller-manager-v5-84664d9f9d-km9qj   2m           33Mi            
+guardrails-detector-ibm-hap-predictor-79d89d9959-dlx8h    12m          3489Mi          
+guardrails-detector-ibm-hap-predictor-79d89d9959-vkmgc    11m          3879Mi          
+guardrails-orchestrator-8694c76f6f-rwmgr                  8m           211Mi           
+lemonade-stand-6897b8c5c9-kw6xx                           2m           50Mi            
+lingua-detector-755dd59dd8-f97ts                          2m           1290Mi          
+llama-32-predictor-6f5cd9954c-9vd8b                       6m           8488Mi          
+llama-32-predictor-6f5cd9954c-jpfkr                       6m           9461Mi          
+minio-storage-guardrail-detectors-bbb95897c-2484g         1m           104Mi           
+prompt-injection-detector-predictor-66f8674bc9-hv2c7      12m          4612Mi          
+prompt-injection-detector-predictor-66f8674bc9-xltvc      12m          4446Mi          
+translate-service-64d987796f-fdgmz                        8m           4604Mi          
+translate-service-64d987796f-qdfmx                        8m           4385Mi          

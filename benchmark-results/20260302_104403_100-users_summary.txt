@@ -1,0 +1,226 @@
+{
+    "root_group": {
+        "groups": {},
+        "checks": {
+                "status is 200": {
+                    "path": "::status is 200",
+                    "id": "6210a8cd14cd70477eba5c5e4cb3fb5f",
+                    "passes": 6126,
+                    "fails": 0,
+                    "name": "status is 200"
+                },
+                "received SSE data": {
+                    "name": "received SSE data",
+                    "path": "::received SSE data",
+                    "id": "4a5753b8ada6e009c83271988f51b9b7",
+                    "passes": 6126,
+                    "fails": 0
+                },
+                "got response content": {
+                    "name": "got response content",
+                    "path": "::got response content",
+                    "id": "5da11c3fd57e638983cb3f1b8c90afea",
+                    "passes": 6126,
+                    "fails": 0
+                },
+                "stream completed": {
+                    "name": "stream completed",
+                    "path": "::stream completed",
+                    "id": "5e0ce28d0f9f01961ed0d15b78b171d8",
+                    "passes": 6126,
+                    "fails": 0
+                },
+                "safe prompt got content": {
+                    "id": "480a0cec5b7e8e7be68d2ef463fae1f5",
+                    "passes": 2095,
+                    "fails": 314,
+                    "name": "safe prompt got content",
+                    "path": "::safe prompt got content"
+                }
+            },
+        "name": "",
+        "path": "",
+        "id": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "metrics": {
+        "sse_success_rate": {
+            "passes": 6126,
+            "fails": 0,
+            "thresholds": {
+                "rate>0.80": false
+            },
+            "value": 1
+        },
+        "http_req_blocked": {
+            "p(95)": 0.016,
+            "avg": 5.121944018279077,
+            "min": 0.003,
+            "med": 0.011,
+            "max": 357.731,
+            "p(90)": 0.014
+        },
+        "sse_content_length": {
+            "avg": 173.00685602350637,
+            "min": 0,
+            "med": 30,
+            "max": 1337,
+            "p(90)": 554,
+            "p(95)": 793
+        },
+        "http_req_duration": {
+            "p(90)": 7025.7554,
+            "p(95)": 9528.937799999998,
+            "avg": 2918.338585767913,
+            "min": 112.423,
+            "med": 1593.005,
+            "max": 27355.679,
+            "thresholds": {
+                "p(95)<60000": false
+            }
+        },
+        "data_sent": {
+            "count": 1975628,
+            "rate": 6452.925625876492
+        },
+        "http_req_receiving": {
+            "avg": 2778.2773109188834,
+            "min": 0.011,
+            "med": 1452.842,
+            "max": 27157.622,
+            "p(90)": 6883.491400000001,
+            "p(95)": 9368.354299999988
+        },
+        "sse_chunks_count": {
+            "p(95)": 21,
+            "avg": 4.981554031994777,
+            "min": 0,
+            "med": 2,
+            "max": 59,
+            "p(90)": 14
+        },
+        "http_req_waiting": {
+            "avg": 140.01206332626077,
+            "min": 111.77,
+            "med": 123.127,
+            "max": 575.924,
+            "p(90)": 188.0496,
+            "p(95)": 201.8129
+        },
+        "sse_blocked_rate": {
+            "passes": 3267,
+            "fails": 2859,
+            "value": 0.5333006856023507
+        },
+        "http_req_failed": {
+            "passes": 0,
+            "fails": 6127,
+            "value": 0
+        },
+        "vus": {
+            "value": 4,
+            "min": 4,
+            "max": 100
+        },
+        "http_req_sending": {
+            "p(95)": 0.07,
+            "avg": 0.04921152276807558,
+            "min": 0.003,
+            "med": 0.048,
+            "max": 0.498,
+            "p(90)": 0.065
+        },
+        "vus_max": {
+            "max": 100,
+            "value": 100,
+            "min": 100
+        },
+        "sse_error_rate": {
+            "passes": 0,
+            "fails": 6126,
+            "thresholds": {
+                "rate<0.20": false
+            },
+            "value": 0
+        },
+        "checks": {
+            "passes": 26599,
+            "fails": 314,
+            "value": 0.9883327759818675
+        },
+        "iteration_duration": {
+            "avg": 4936.726551842164,
+            "min": 1122.361459,
+            "med": 3757.1639375,
+            "max": 29663.39075,
+            "p(90)": 9058.8621875,
+            "p(95)": 11548.011968999994
+        },
+        "sse_requests_total": {
+            "rate": 20.009142603829964,
+            "count": 6126
+        },
+        "http_req_connecting": {
+            "min": 0,
+            "med": 0,
+            "max": 218.073,
+            "p(90)": 0,
+            "p(95)": 0,
+            "avg": 2.484041292639139
+        },
+        "data_received": {
+            "count": 5631332,
+            "rate": 18393.425569296607
+        },
+        "sse_ttfb_ms": {
+            "avg": 661.1786332564755,
+            "min": 106.5,
+            "med": 593,
+            "max": 3718,
+            "p(90)": 1213.25,
+            "p(95)": 1494.3749999999998,
+            "thresholds": {
+                "p(50)<5000": false,
+                "p(95)<15000": false
+            }
+        },
+        "http_req_tls_handshaking": {
+            "avg": 2.6137390239921667,
+            "min": 0,
+            "med": 0,
+            "max": 195.997,
+            "p(90)": 0,
+            "p(95)": 0
+        },
+        "iterations": {
+            "rate": 20.009142603829964,
+            "count": 6126
+        },
+        "sse_total_time_ms": {
+            "avg": 2924.086353248449,
+            "min": 113,
+            "med": 1599,
+            "max": 27356,
+            "p(90)": 7042.000000000001,
+            "p(95)": 9539.499999999998,
+            "thresholds": {
+                "p(95)<60000": false
+            }
+        },
+        "http_reqs": {
+            "count": 6127,
+            "rate": 20.012408869354587
+        },
+        "http_req_duration{expected_response:true}": {
+            "max": 27355.679,
+            "p(90)": 7025.7554,
+            "p(95)": 9528.937799999998,
+            "avg": 2918.338585767913,
+            "min": 112.423,
+            "med": 1593.005
+        }
+    },
+    "setup_data": {
+        "baseUrl": "https://lemonade-stand-lemonade-stand-assistant.apps.cluster-8zrnr.8zrnr.sandbox203.opentlc.com",
+        "scenario": "load"
+    }
+}
