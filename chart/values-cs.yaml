@@ -3,7 +3,6 @@
 language:
   code: "cs"
   name: "česky"
-  alsoAcceptLanguages: "sk"
 
   messages:
     hap_input: "🤬 Vaše zpráva byla označena jako potenciálně škodlivý nebo nevhodný obsah."
@@ -12,8 +11,8 @@ language:
     prompt_injection_output: "👮 Odpověď byla zablokována, protože obsahovala podezřelé instrukce."
     regex_competitor_input: "🍏 Mohu mluvit pouze o citrónech! Jiné ovoce a témata nejsou povolena."
     regex_competitor_output: "🍏 Ups! Skoro jsem mluvil o jiném ovoci. Zůstaneme u citrónů!"
-    language_detection_input: "🇬🇧 I can only communicate in English. Please rephrase your message in English."
-    language_detection_output: "🇬🇧 Oops! I almost answered in non-English. Let's stick to English!"
+    language_detection_input: "🇨🇿 Umím komunikovat pouze česky. Přeformulujte prosím svou zprávu česky."
+    language_detection_output: "🇨🇿 Ups! Skoro jsem odpověděl v jiném jazyce. Zůstaneme u češtiny!"
     followup: "Mohu vám pomoci s něčím jiným?"
     message_too_long: "Vaše zpráva je příliš dlouhá! Prosím, položte krátkou a jednoduchou otázku - ideálně do 100 znaků."
     language_rejection: "🇨🇿 Umím komunikovat pouze {language_name}. Přeformulujte prosím svou zprávu {language_name}."

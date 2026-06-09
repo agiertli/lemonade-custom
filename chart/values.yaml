@@ -40,7 +40,6 @@ translateService:
 language:
   code: "sk"
   name: "slovensky"
-  alsoAcceptLanguages: ""
   linguaImage: "quay.io/agiertli/lingua-language-detector:2.0.0"
 
   # User-facing messages (detector blocks, errors, etc.)
@@ -51,8 +50,8 @@ language:
     prompt_injection_output: "👮 Odpoveď bola zablokovaná, pretože obsahovala podozrivé inštrukcie."
     regex_competitor_input: "🍏 Môžem hovoriť iba o citrónoch! Iné ovocie a témy nie sú povolené."
     regex_competitor_output: "🍏 Ups! Takmer som hovoril o inom ovocí. Zostaneme pri citrónoch!"
-    language_detection_input: "🇬🇧 I can only communicate in English. Please rephrase your message in English."
-    language_detection_output: "🇬🇧 Oops! I almost answered in non-English. Let's stick to English!"
+    language_detection_input: "🇸🇰 Viem komunikovať iba po slovensky. Preformulujte prosím svoju správu po slovensky."
+    language_detection_output: "🇸🇰 Ups! Takmer som odpovedal v inom jazyku. Zostaneme pri slovenčine!"
     followup: "Môžem vám pomôcť s niečím iným?"
     message_too_long: "Vaša správa je príliš dlhá! Prosím, položte krátku a jednoduchú otázku - ideálne do 100 znakov."
     language_rejection: "🇸🇰 Viem komunikovať iba po {language_name}. Preformulujte prosím svoju správu po {language_name}."
