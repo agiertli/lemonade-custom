@@ -200,20 +200,19 @@ To enable multilingual support (e.g. Slovak or Czech), deploy from the `translat
 git checkout translation
 
 # Slovak (default language)
-HF_TOKEN=$(cat ~/.cache/huggingface/token)
 helm upgrade lemonade-stand-assistant ./chart --namespace ${PROJECT} \
   -f ./chart/values-prod.yaml \
-  --set translateService.enabled=true \
-  --set "translateService.hfToken=$HF_TOKEN"
+  --set translateService.enabled=true
 
 # Czech — just add the Czech values overlay, no code changes needed
 helm upgrade lemonade-stand-assistant ./chart --namespace ${PROJECT} \
   -f ./chart/values-prod.yaml -f ./chart/values-cs.yaml \
-  --set translateService.enabled=true \
-  --set "translateService.hfToken=$HF_TOKEN"
+  --set translateService.enabled=true
 ```
 
 Translation mode adds TranslateGemma 4B (2 GPU replicas) for bidirectional translation. All UI strings and error messages are configured via Helm values — switching language requires only a `helm upgrade` with a different values overlay file.
+
+For a step-by-step guide on adding a new language, see **[TRANSLATION.md](./TRANSLATION.md)**.
 
 ### Validating the deployment
 

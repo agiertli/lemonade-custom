@@ -20,38 +20,26 @@ PROD_MODE=true ./scripts/install.sh
 # Multilingual version (after base install)
 git checkout translation
 PROD_MODE=true ./scripts/install.sh
-HF_TOKEN=$(cat ~/.cache/huggingface/token)
 
 # Slovak (default)
 helm upgrade lemonade-stand-assistant ./chart -n lemonade-stand-assistant \
   -f ./chart/values-prod.yaml \
-  --set translateService.enabled=true \
-  --set "translateService.hfToken=$HF_TOKEN"
+  --set translateService.enabled=true
 
 # Czech
 helm upgrade lemonade-stand-assistant ./chart -n lemonade-stand-assistant \
   -f ./chart/values-prod.yaml -f ./chart/values-cs.yaml \
-  --set translateService.enabled=true \
-  --set "translateService.hfToken=$HF_TOKEN"
+  --set translateService.enabled=true
 ```
 
 ## Switching Language
 
 Language is fully configurable via Helm values — no code changes or image rebuilds needed.
+Only ONE language is active at a time.
 
 **Quick switch** (SK default → CZ): add `-f ./chart/values-cs.yaml` to the helm command.
 
-**What's configured per language** (`chart/values.yaml` / `chart/values-cs.yaml`):
-- `language.code` — ISO 639-1 code (sk, cs) for TranslateGemma and lingua detector
-- `language.name` — display name (slovensky, česky)
-- `language.messages.*` — all detector/error messages in the target language
-- `language.ui.*` — all frontend strings (header, examples, placeholder, footer)
-- `translateService.enabled` — must be `true` for multilingual mode (env var `ENABLE_TRANSLATION`)
-- `translateService.hfToken` — HuggingFace token for TranslateGemma model download
-
-Only ONE language is active at a time. The lingua detector only accepts input in the configured `language.code`.
-
-**Adding a new language**: copy `chart/values-cs.yaml` to `chart/values-XX.yaml`, translate all strings, set `language.code` and `language.name`, then deploy with `-f ./chart/values-XX.yaml`. The lingua detector supports: sk, cs, de, fr, es, it, pl, hu, pt, nl, ro, bg, hr, sl, uk, ru. TranslateGemma must also support the language.
+For full details on adding a new language, see **[TRANSLATION.md](./TRANSLATION.md)**.
 
 ## Architecture (translation branch)
 
@@ -89,7 +77,7 @@ Non-streaming works perfectly with all detectors.
 - API format: `<<<source>>>sk<<<target>>>en<<<text>>>...` in user message
 - Requires `HOME=/tmp` env var (permission fix for /.cache)
 - Requires `mkdir -p /tmp/.cache/vllm /tmp/.cache/flashinfer` before start
-- Model downloads at startup via HF_TOKEN (~2 min, emptyDir volume)
+- Model downloads at startup (~2 min, emptyDir volume). HF_TOKEN optional (current model is public)
 - max-model-len=2048, max-num-seqs=32
 
 ## Key Files
