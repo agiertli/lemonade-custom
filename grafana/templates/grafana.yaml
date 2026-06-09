@@ -315,7 +315,7 @@ spec:
                 "properties": [
                   {
                     "id": "displayName",
-                    "value": "🇬🇧Neslovenčina"
+                    "value": "🇸🇰Neslovenčina"
                   },
                   {
                     "id": "color",
@@ -334,7 +334,7 @@ spec:
                 "properties": [
                   {
                     "id": "displayName",
-                    "value": "👮Útok na systém"
+                    "value": "👮Jailbreak"
                   },
                   {
                     "id": "color",
