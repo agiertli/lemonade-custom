@@ -2,6 +2,42 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
+  name: lemonade-stand-locale
+  labels:
+    app: lemonade-stand
+    app.kubernetes.io/name: lemonade-stand
+    app.kubernetes.io/component: config
+data:
+  locale.json: |
+    {
+      "detector_messages": {
+        "hap_input": {{ .Values.language.messages.hap_input | toJson }},
+        "hap_output": {{ .Values.language.messages.hap_output | toJson }},
+        "prompt_injection_input": {{ .Values.language.messages.prompt_injection_input | toJson }},
+        "prompt_injection_output": {{ .Values.language.messages.prompt_injection_output | toJson }},
+        "regex_competitor_input": {{ .Values.language.messages.regex_competitor_input | toJson }},
+        "regex_competitor_output": {{ .Values.language.messages.regex_competitor_output | toJson }},
+        "language_detection_input": {{ .Values.language.messages.language_detection_input | toJson }},
+        "language_detection_output": {{ .Values.language.messages.language_detection_output | toJson }}
+      },
+      "followup": {{ .Values.language.messages.followup | toJson }},
+      "message_too_long": {{ .Values.language.messages.message_too_long | toJson }},
+      "language_rejection": {{ .Values.language.messages.language_rejection | toJson }},
+      "no_response": {{ .Values.language.messages.no_response | toJson }},
+      "truncation": {{ .Values.language.messages.truncation | toJson }},
+      "ui": {
+        "header": {{ .Values.language.ui.header | toJson }},
+        "example1": {{ .Values.language.ui.example1 | toJson }},
+        "example2": {{ .Values.language.ui.example2 | toJson }},
+        "example3": {{ .Values.language.ui.example3 | toJson }},
+        "placeholder": {{ .Values.language.ui.placeholder | toJson }},
+        "footer": {{ .Values.language.ui.footer | toJson }}
+      }
+    }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
   name: lemonade-stand-system-prompt
   labels:
     app: lemonade-stand
@@ -79,6 +115,9 @@ spec:
             - name: system-prompt
               mountPath: /system-prompt
               readOnly: true
+            - name: locale
+              mountPath: /locale
+              readOnly: true
           resources:
             limits:
               cpu: '2'
@@ -117,6 +156,12 @@ spec:
             items:
               - key: prompt
                 path: prompt
+        - name: locale
+          configMap:
+            name: lemonade-stand-locale
+            items:
+              - key: locale.json
+                path: locale.json
 ---
 apiVersion: v1
 kind: Service

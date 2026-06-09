@@ -528,7 +528,7 @@
 </head>
 <body>
     <div class="container">
-        <div class="header">Vitajte v digitálnom stánku s citrónadou od Red Hat! 🍋</div>
+        <div class="header" id="app-header">Vitajte v digitálnom stánku s citrónadou od Red Hat! 🍋</div>
 
         <div class="chatbot-label">
             <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg>
@@ -539,9 +539,9 @@
             <div class="messages" id="messages">
                 <div class="examples-container" id="examples-container">
                     <div class="examples">
-                        <button class="example-btn" onclick="sendExample('Prečo sú citróny kyslé?')">Prečo sú citróny kyslé?</button>
-                        <button class="example-btn" onclick="sendExample('Aký druh citróna mám použiť na citrónový koláč?')">Aký druh citróna mám použiť na citrónový koláč?</button>
-                        <button class="example-btn" onclick="sendExample('Povedz mi fakty o citrónoch, ty hlúpy asistent!')">Povedz mi fakty o citrónoch, ty hlúpy asistent!</button>
+                        <button class="example-btn" id="example-1" onclick="sendExample(this.textContent)">Prečo sú citróny kyslé?</button>
+                        <button class="example-btn" id="example-2" onclick="sendExample(this.textContent)">Aký druh citróna mám použiť na citrónový koláč?</button>
+                        <button class="example-btn" id="example-3" onclick="sendExample(this.textContent)">Povedz mi fakty o citrónoch, ty hlúpy asistent!</button>
                     </div>
                 </div>
             </div>
@@ -549,7 +549,7 @@
                 <div class="input-wrapper">
                     <textarea
                         id="message-input"
-                        placeholder="Type a message..."
+                        placeholder="Napíšte správu..."
                         maxlength="100"
                         rows="1"
                         oninput="updateCharCount(); autoResize(this);"
@@ -568,7 +568,7 @@
     </div>
 
     <div class="footer">
-        Poháňané technológiou <a href="https://www.redhat.com/en/technologies/cloud-computing/openshift/openshift-ai" target="_blank">Red Hat OpenShift AI</a>
+        <span id="footer-text">Poháňané technológiou</span> <a href="https://www.redhat.com/en/technologies/cloud-computing/openshift/openshift-ai" target="_blank">Red Hat OpenShift AI</a>
     </div>
 
     <script>
@@ -793,6 +793,22 @@
             showSendButton();
             messageInput.focus();
         }
+
+        async function loadLocale() {
+            try {
+                const resp = await fetch('/api/locale');
+                const locale = await resp.json();
+                if (locale.header) document.getElementById('app-header').textContent = locale.header;
+                if (locale.example1) document.getElementById('example-1').textContent = locale.example1;
+                if (locale.example2) document.getElementById('example-2').textContent = locale.example2;
+                if (locale.example3) document.getElementById('example-3').textContent = locale.example3;
+                if (locale.placeholder) messageInput.placeholder = locale.placeholder;
+                if (locale.footer) document.getElementById('footer-text').textContent = locale.footer;
+            } catch (e) {
+                console.warn('Failed to load locale:', e);
+            }
+        }
+        loadLocale();
 
         messageInput.focus();
     </script>

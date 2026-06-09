@@ -6,7 +6,8 @@ AI-powered customer service chatbot with guardrails on Red Hat OpenShift.
 
 - **Push remote**: Always use `custom` remote (`agiertli/lemonade-custom`). Never push to `origin`.
 - English demo: `automated-fixes` branch
-- Slovak demo (translation): `itapa-sk-v2` branch (current)
+- Multilingual demo (SK/CZ): `translation` branch (current)
+- Slovak demo (translation, legacy): `itapa-sk-v2` branch
 - Slovak demo (native, abandoned): `itapa-sk` branch
 
 ## Installation
@@ -16,15 +17,38 @@ AI-powered customer service chatbot with guardrails on Red Hat OpenShift.
 git checkout automated-fixes
 PROD_MODE=true ./scripts/install.sh
 
-# Slovak version (after base install)
-git checkout itapa-sk-v2
+# Multilingual version (after base install)
+git checkout translation
 PROD_MODE=true ./scripts/install.sh
 HF_TOKEN=$(cat ~/.cache/huggingface/token)
+
+# Slovak (default)
 helm upgrade lemonade-stand-assistant ./chart -n lemonade-stand-assistant \
   -f ./chart/values-prod.yaml \
   --set translateService.enabled=true \
   --set "translateService.hfToken=$HF_TOKEN"
+
+# Czech
+helm upgrade lemonade-stand-assistant ./chart -n lemonade-stand-assistant \
+  -f ./chart/values-prod.yaml -f ./chart/values-cs.yaml \
+  --set translateService.enabled=true \
+  --set "translateService.hfToken=$HF_TOKEN"
 ```
+
+## Switching Language
+
+Language is fully configurable via Helm values — no code changes or image rebuilds needed.
+
+**Quick switch** (SK default → CZ): add `-f ./chart/values-cs.yaml` to the helm command.
+
+**What's configured per language** (`chart/values.yaml` / `chart/values-cs.yaml`):
+- `language.code` — ISO 639-1 code (sk, cs) for TranslateGemma
+- `language.name` — display name (slovensky, česky)
+- `language.alsoAcceptLanguages` — comma-separated close languages the lingua detector also accepts
+- `language.messages.*` — all detector/error messages in the target language
+- `language.ui.*` — all frontend strings (header, examples, placeholder, footer)
+
+**Adding a new language**: copy `chart/values-cs.yaml` to `chart/values-XX.yaml`, translate all strings, set `language.code` and `language.name`, then deploy with `-f ./chart/values-XX.yaml`. The lingua detector supports: sk, cs, de, fr, es, it, pl, hu, pt, nl, ro, bg, hr, sl, uk, ru. TranslateGemma must also support the language.
 
 ## Architecture (itapa-sk-v2)
 
@@ -68,23 +92,24 @@ Non-streaming works perfectly with all detectors.
 ## Key Files
 
 - `chart/templates/translate-service.yaml` — TranslateGemma vLLM deployment
-- `chart/templates/lemonade-stand-app.yaml` — App + Slovak system prompt + env vars
-- `chart/templates/lingua.yaml` — Slovak lingua detector
+- `chart/templates/lemonade-stand-app.yaml` — App + system prompt + locale ConfigMap + env vars
+- `chart/templates/lingua.yaml` — Lingua detector (language via ACCEPTED_LANGUAGE env var)
 - `chart/templates/ibm-hap-detector.yaml` — HAP (CPU, GPU taint toleration always on)
 - `chart/templates/prompt-injection-detector.yaml` — PI (CPU, GPU taint toleration always on)
 - `chart/templates/llm-llama32.yaml` — LLaMA 3.2 3B
 - `chart/values-prod.yaml` — Prod config (GPU off for detectors)
 - `lemonade-stand-app/app_fastapi.py` — Main app with translation logic
-- `lemonade-stand-app/static/index.html` — Slovak UI
+- `lemonade-stand-app/static/index.html` — UI (locale loaded dynamically from /api/locale)
+- `chart/values-cs.yaml` — Czech language overlay
 - `translate-service/` — (legacy FastAPI wrapper, not used with vLLM approach)
-- `lingua-detector/` — Slovak lingua detector source
+- `lingua-detector/` — Language-agnostic lingua detector source
 
 ## Container Images (quay.io/agiertli)
 
 | Image | Purpose |
 |-------|---------|
 | `lemon-fastapi-translate:1.0.12` | App with translation + non-streaming orchestrator |
-| `lingua-language-detector-sk:1.0.0` | Lingua accepting Slovak |
+| `lingua-language-detector:2.0.0` | Lingua detector (language-agnostic, configured via ACCEPTED_LANGUAGE env var) |
 
 ## Known Issues
 

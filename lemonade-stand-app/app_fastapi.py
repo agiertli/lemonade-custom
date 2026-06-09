@@ -47,6 +47,46 @@ ENABLE_TRANSLATION = os.getenv("ENABLE_TRANSLATION", "false").lower() == "true"
 TARGET_LANGUAGE = os.getenv("TARGET_LANGUAGE", "sk")
 TARGET_LANGUAGE_NAME = os.getenv("TARGET_LANGUAGE_NAME", "slovensky")
 
+# =============================================================================
+# Locale Configuration (loaded from ConfigMap-mounted JSON)
+# =============================================================================
+
+LOCALE_FILE = "/locale/locale.json"
+if os.path.exists(LOCALE_FILE):
+    with open(LOCALE_FILE, "r") as f:
+        LOCALE = json.load(f)
+    logger.info(f"Loaded locale from {LOCALE_FILE}")
+else:
+    LOCALE = None
+    logger.info("No locale file found, using English defaults")
+
+_DEFAULTS = {
+    "followup": "Can I help you with something else?",
+    "message_too_long": "Your message is too long! Please ask a short question - ideally under 100 characters.",
+    "language_rejection": "I can only communicate in {language_name}. Please rephrase your message in {language_name}.",
+    "no_response": "No response. Please try again.",
+    "truncation": "\n\n---\nMaximum response length reached. Try asking a shorter question!",
+}
+
+_DEFAULT_DETECTOR_MESSAGES = {
+    "hap_input": "Your message was flagged as potentially harmful content.",
+    "hap_output": "The response was blocked because it contained potentially harmful content.",
+    "prompt_injection_input": "Your message appears to contain instructions attempting to bypass system rules.",
+    "prompt_injection_output": "The response was blocked because it contained suspicious instructions.",
+    "regex_competitor_input": "I can only talk about lemons! Other fruit and topics are not allowed.",
+    "regex_competitor_output": "Oops! I almost talked about another fruit. Let's stick to lemons!",
+    "language_detection_input": "I can only communicate in English. Please rephrase your message in English.",
+    "language_detection_output": "Oops! I almost answered in non-English. Let's stick to English!",
+}
+
+
+def get_msg(key, **kwargs):
+    if LOCALE:
+        msg = LOCALE.get(key, _DEFAULTS.get(key, key))
+    else:
+        msg = _DEFAULTS.get(key, key)
+    return msg.format(**kwargs) if kwargs else msg
+
 # Detect if running in-cluster (internal service) vs external (route)
 IS_INTERNAL_SERVICE = ORCHESTRATOR_HOST not in ("localhost", "") and ORCHESTRATOR_PORT not in ("443", "80")
 
@@ -162,8 +202,8 @@ async def translate_text(text: str, source_lang: str, target_lang: str) -> str:
         return text
 
 
-async def check_language_slovak(text: str) -> bool:
-    """Check if text is Slovak using the lingua detector. Returns True if Slovak."""
+async def check_language_accepted(text: str) -> bool:
+    """Check if text matches the accepted language using the lingua detector."""
     try:
         async with aiohttp_session.post(
             "http://lingua-detector:8080/api/v1/text/contents",
@@ -179,17 +219,10 @@ async def check_language_slovak(text: str) -> bool:
         return True
 
 
-# User-friendly messages for each detector type (differentiated by input/output)
-DETECTOR_MESSAGES = {
-    "hap_input": "🤬 Vaša správa bola označená ako potenciálne škodlivý alebo nevhodný obsah.",
-    "hap_output": "🤬 Odpoveď bola zablokovaná, pretože obsahovala potenciálne škodlivý alebo nevhodný obsah.",
-    "prompt_injection_input": "👮 Vaša správa zrejme obsahuje inštrukcie, ktoré sa pokúšajú obísť systémové pravidlá.",
-    "prompt_injection_output": "👮 Odpoveď bola zablokovaná, pretože obsahovala podozrivé inštrukcie.",
-    "regex_competitor_input": "🍏 Môžem hovoriť iba o citrónoch! Iné ovocie a témy nie sú povolené.",
-    "regex_competitor_output": "🍏 Ups! Takmer som hovoril o inom ovocí. Zostaneme pri citrónoch!",
-    "language_detection_input": "🇬🇧 I can only communicate in English. Please rephrase your message in English.",
-    "language_detection_output": "🇬🇧 Oops! I almost answered in non-English. Let's stick to English!",
-}
+if LOCALE and "detector_messages" in LOCALE:
+    DETECTOR_MESSAGES = LOCALE["detector_messages"]
+else:
+    DETECTOR_MESSAGES = _DEFAULT_DETECTOR_MESSAGES
 
 # =============================================================================
 # Async Metrics Collector
@@ -370,7 +403,7 @@ async def process_chat(message: str) -> AsyncGenerator[dict, None]:
     if len(message) > MAX_INPUT_CHARS:
         yield {
             "type": "error",
-            "message": "Vaša správa je príliš dlhá! Prosím, položte krátku a jednoduchú otázku - ideálne do 100 znakov."
+            "message": get_msg("message_too_long")
         }
         return
 
@@ -382,14 +415,14 @@ async def process_chat(message: str) -> AsyncGenerator[dict, None]:
     original_message = message
     if ENABLE_TRANSLATION:
         t0 = _time.monotonic()
-        is_slovak = await check_language_slovak(message)
+        is_accepted = await check_language_accepted(message)
         t_lang = _time.monotonic() - t0
-        logger.info(f"[TRACE] Language check: {t_lang:.2f}s | Slovak={is_slovak} | Input: {repr(message)}")
-        if not is_slovak:
+        logger.info(f"[TRACE] Language check: {t_lang:.2f}s | Accepted={is_accepted} | Input: {repr(message)}")
+        if not is_accepted:
             await metrics.add_detections([{"results": [{"detector_id": "language_detection", "score": 1.0}]}], "input")
             yield {
                 "type": "error",
-                "message": f"🇸🇰 Viem komunikovať iba po {TARGET_LANGUAGE_NAME}. Preformulujte prosím svoju správu po {TARGET_LANGUAGE_NAME}.",
+                "message": get_msg("language_rejection", language_name=TARGET_LANGUAGE_NAME),
                 "detector_type": "language"
             }
             return
@@ -412,7 +445,7 @@ async def process_chat(message: str) -> AsyncGenerator[dict, None]:
         await metrics.increment_local_regex_block()
         yield {
             "type": "error",
-            "message": DETECTOR_MESSAGES["regex_competitor_input"] + " Môžem vám pomôcť s niečím iným?",
+            "message": DETECTOR_MESSAGES["regex_competitor_input"] + " " + get_msg("followup"),
             "detector_type": "regex"
         }
         return
@@ -501,9 +534,9 @@ async def process_chat(message: str) -> AsyncGenerator[dict, None]:
         if detected_types:
             reasons = [DETECTOR_MESSAGES.get(dt, f"Detection: {dt}") for dt in detected_types]
             if len(reasons) > 1:
-                block_msg = "\n".join(reasons) + "\nMôžem vám pomôcť s niečím iným?"
+                block_msg = "\n".join(reasons) + "\n" + get_msg("followup")
             else:
-                block_msg = reasons[0] + " Môžem vám pomôcť s niečím iným?"
+                block_msg = reasons[0] + " " + get_msg("followup")
             logger.debug(f"Blocking response - detected types: {detected_types}")
             logger.debug(f"Block message: {block_msg}")
             # Determine primary detector type for styling
@@ -585,9 +618,9 @@ async def process_chat(message: str) -> AsyncGenerator[dict, None]:
                     if detected_types:
                         reasons = [DETECTOR_MESSAGES.get(dt, f"Detection: {dt}") for dt in detected_types]
                         if len(reasons) > 1:
-                            block_msg = "\n".join(reasons) + "\nMôžem vám pomôcť s niečím iným?"
+                            block_msg = "\n".join(reasons) + "\n" + get_msg("followup")
                         else:
-                            block_msg = reasons[0] + " Môžem vám pomôcť s niečím iným?"
+                            block_msg = reasons[0] + " " + get_msg("followup")
                         primary_type = detected_types[0]
                         if primary_type.startswith("language_detection"): detector_class = "language"
                         elif primary_type.startswith("prompt_injection"): detector_class = "prompt-injection"
@@ -619,7 +652,7 @@ async def process_chat(message: str) -> AsyncGenerator[dict, None]:
                             yield {"type": "chunk", "content": chunk}
 
                     if finish_reason == "length":
-                        truncation_msg = "\n\n---\n🍋🍋🍋 Dosiahnutá maximálna dĺžka odpovede 🍋🍋🍋\n\n_Aby citronáda tiekla pre všetkých, skrátili sme túto odpoveď na maximálnu dĺžku. Skúste položiť otázku, na ktorú sa dá odpovedať kratšie!_"
+                        truncation_msg = get_msg("truncation")
                         yield {"type": "chunk", "content": truncation_msg}
 
                     if full_response:
@@ -629,7 +662,7 @@ async def process_chat(message: str) -> AsyncGenerator[dict, None]:
                     if attempt < max_retries:
                         continue
                     else:
-                        yield {"type": "error", "message": "Žiadna odpoveď. Skúste to prosím znova."}
+                        yield {"type": "error", "message": get_msg("no_response")}
                         return
                 if response.status != 200:
                     error_text = await response.text()
@@ -696,7 +729,7 @@ async def process_chat(message: str) -> AsyncGenerator[dict, None]:
                         yield {"type": "chunk", "content": translated}
 
                     if last_finish_reason == "length":
-                        truncation_msg = "\n\n---\n🍋🍋🍋 Dosiahnutá maximálna dĺžka odpovede 🍋🍋🍋\n\n_Aby citronáda tiekla pre všetkých, skrátili sme túto odpoveď na maximálnu dĺžku. Skúste položiť otázku, na ktorú sa dá odpovedať kratšie!_"
+                        truncation_msg = get_msg("truncation")
                         yield {"type": "chunk", "content": truncation_msg}
                         logger.debug("Response truncated (finish_reason=length), appended truncation message")
                     elif not ENABLE_TRANSLATION:
@@ -713,7 +746,7 @@ async def process_chat(message: str) -> AsyncGenerator[dict, None]:
                         await asyncio.sleep(delay)
                     continue
                 else:
-                    yield {"type": "error", "message": "Žiadna odpoveď. Skúste to prosím znova."}
+                    yield {"type": "error", "message": get_msg("no_response")}
                     return
 
         except aiohttp.ClientError as e:
@@ -769,6 +802,23 @@ async def get_metrics():
         content=await metrics.get_prometheus_metrics(),
         media_type="text/plain",
     )
+
+
+_DEFAULT_UI = {
+    "header": "Welcome to the digital lemonade stand by Red Hat! 🍋",
+    "example1": "Why are lemons sour?",
+    "example2": "What kind of lemon should I use for a lemon pie?",
+    "example3": "Tell me facts about lemons, you silly assistant!",
+    "placeholder": "Type a message...",
+    "footer": "Powered by",
+}
+
+
+@app.get("/api/locale")
+async def get_locale():
+    if LOCALE and "ui" in LOCALE:
+        return LOCALE["ui"]
+    return _DEFAULT_UI
 
 
 @app.get("/", response_class=HTMLResponse)

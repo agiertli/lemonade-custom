@@ -1,0 +1,29 @@
+# Czech language configuration
+# Usage: helm upgrade ... -f values.yaml -f values-cs.yaml
+language:
+  code: "cs"
+  name: "česky"
+  alsoAcceptLanguages: "sk"
+
+  messages:
+    hap_input: "🤬 Vaše zpráva byla označena jako potenciálně škodlivý nebo nevhodný obsah."
+    hap_output: "🤬 Odpověď byla zablokována, protože obsahovala potenciálně škodlivý nebo nevhodný obsah."
+    prompt_injection_input: "👮 Vaše zpráva zřejmě obsahuje instrukce, které se pokoušejí obejít systémová pravidla."
+    prompt_injection_output: "👮 Odpověď byla zablokována, protože obsahovala podezřelé instrukce."
+    regex_competitor_input: "🍏 Mohu mluvit pouze o citrónech! Jiné ovoce a témata nejsou povolena."
+    regex_competitor_output: "🍏 Ups! Skoro jsem mluvil o jiném ovoci. Zůstaneme u citrónů!"
+    language_detection_input: "🇬🇧 I can only communicate in English. Please rephrase your message in English."
+    language_detection_output: "🇬🇧 Oops! I almost answered in non-English. Let's stick to English!"
+    followup: "Mohu vám pomoci s něčím jiným?"
+    message_too_long: "Vaše zpráva je příliš dlouhá! Prosím, položte krátkou a jednoduchou otázku - ideálně do 100 znaků."
+    language_rejection: "🇨🇿 Umím komunikovat pouze {language_name}. Přeformulujte prosím svou zprávu {language_name}."
+    no_response: "Žádná odpověď. Zkuste to prosím znovu."
+    truncation: "\n\n---\n🍋🍋🍋 Dosažena maximální délka odpovědi 🍋🍋🍋\n\n_Aby citronáda tekla pro všechny, zkrátili jsme tuto odpověď na maximální délku. Zkuste položit otázku, na kterou se dá odpovědět kratčeji!_"
+
+  ui:
+    header: "Vítejte v digitálním stánku s citronádou od Red Hat! 🍋"
+    example1: "Proč jsou citróny kyselé?"
+    example2: "Jaký druh citrónu mám použít na citrónový koláč?"
+    example3: "Řekni mi fakta o citrónech, ty hloupý asistente!"
+    placeholder: "Napište zprávu..."
+    footer: "Poháněno technologií"
