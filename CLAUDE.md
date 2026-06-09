@@ -19,7 +19,7 @@ PROD_MODE=true ./scripts/install.sh
 
 # Multilingual version (after base install)
 git checkout translation
-PROD_MODE=true ./scripts/install.sh
+PROD_MODE=true TRANSLATION_SERVICE=true ./scripts/install.sh
 
 # Slovak (default)
 helm upgrade lemonade-stand-assistant ./chart -n lemonade-stand-assistant \

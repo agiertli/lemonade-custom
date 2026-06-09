@@ -194,11 +194,18 @@ helm install lemonade-stand-assistant ./chart --namespace ${PROJECT} \
 
 #### Multilingual / Translation Mode
 
-To enable multilingual support (e.g. Slovak or Czech), deploy from the `translation` branch with translation enabled:
+To enable multilingual support (e.g. Slovak or Czech), deploy from the `translation` branch with translation enabled.
+
+First, run the install script with `TRANSLATION_SERVICE=true` to provision additional GPU nodes for TranslateGemma:
 
 ```bash
 git checkout translation
+PROD_MODE=true TRANSLATION_SERVICE=true ./scripts/install.sh
+```
 
+Then deploy the desired language:
+
+```bash
 # Slovak (default language)
 helm upgrade lemonade-stand-assistant ./chart --namespace ${PROJECT} \
   -f ./chart/values-prod.yaml \
