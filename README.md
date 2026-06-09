@@ -8,7 +8,7 @@ This quickstart is based on the demo by Trusty AI team. It can be found [here](h
 
 Imagine we run a successful lemonade stand and want to deploy a customer service agent so our customers can learn more about our products. We'll want to make sure all conversations with the agent are family friendly, and that it does not promote our rival fruit juice vendors.
 
-This demo showcases how to deploy an AI-powered customer service assistant with multiple guardrails to ensure safe, compliant, and on-brand interactions. The solution uses [Llama 3.2](https://huggingface.co/RedHatAI/Llama-3.2-3B-Instruct-FP8-dynamic) as the base language model, protected by three detector models that monitor for harmful content, prompt injection attacks, and language compliance.
+This demo showcases how to deploy an AI-powered customer service assistant with multiple guardrails to ensure safe, compliant, and on-brand interactions. The solution uses [Llama 3.2](https://huggingface.co/RedHatAI/Llama-3.2-3B-Instruct-FP8-dynamic) as the base language model, protected by three detector models that monitor for harmful content, prompt injection attacks, and language compliance. It also supports multilingual operation via [TranslateGemma](https://huggingface.co/Infomaniak-AI/vllm-translategemma-4b-it) translation — users can interact in their native language (e.g. Slovak, Czech) while guardrails process everything in English.
 
 **In this demo, we are following these assumptions of principles:** 
 
@@ -26,10 +26,13 @@ The Lemonade Stand Assistant provides an interactive customer service experience
 To ensure safe and appropriate interactions, the system employs multiple AI guardrails:
 - **[IBM HAP Detector (Granite Guardian)](https://huggingface.co/ibm-granite/granite-guardian-hap-125m)**: Monitors conversations for hate, abuse, and profanity
 - **[Prompt Injection Detector (DeBERTa v3)](https://huggingface.co/protectai/deberta-v3-base-prompt-injection-v2)**: Identifies and blocks attempts to manipulate the AI assistant
-- **[Lingua Language Detector](https://github.com/pemistahl/lingua)**: Ensures inputs and responses are in English only
+- **[Lingua Language Detector](https://github.com/pemistahl/lingua)**: Validates that user input is in the configured target language (configurable via environment variable)
 
-Furthemore, there is a:
+Furthermore, there is a:
 - **Regex Detector**: Blocks specific text without the use of models. In our case, its other fruits we consider "competitors".
+
+When translation mode is enabled, the system also includes:
+- **[TranslateGemma 4B](https://huggingface.co/Infomaniak-AI/vllm-translategemma-4b-it)**: Translates user input from the target language to English (for guardrail processing) and translates LLM responses back to the target language. Runs on vLLM.
 
 The guardrails orchestrator coordinates these detectors to evaluate inputs and outputs before presenting responses to users.
 
@@ -189,6 +192,29 @@ helm install lemonade-stand-assistant ./chart --namespace ${PROJECT} \
   --set detectors.hap.resources.limits.memory=4Gi
 ```
 
+#### Multilingual / Translation Mode
+
+To enable multilingual support (e.g. Slovak or Czech), deploy from the `translation` branch with translation enabled:
+
+```bash
+git checkout translation
+
+# Slovak (default language)
+HF_TOKEN=$(cat ~/.cache/huggingface/token)
+helm upgrade lemonade-stand-assistant ./chart --namespace ${PROJECT} \
+  -f ./chart/values-prod.yaml \
+  --set translateService.enabled=true \
+  --set "translateService.hfToken=$HF_TOKEN"
+
+# Czech — just add the Czech values overlay, no code changes needed
+helm upgrade lemonade-stand-assistant ./chart --namespace ${PROJECT} \
+  -f ./chart/values-prod.yaml -f ./chart/values-cs.yaml \
+  --set translateService.enabled=true \
+  --set "translateService.hfToken=$HF_TOKEN"
+```
+
+Translation mode adds TranslateGemma 4B (2 GPU replicas) for bidirectional translation. All UI strings and error messages are configured via Helm values — switching language requires only a `helm upgrade` with a different values overlay file.
+
 ### Validating the deployment
 
 Run the automated validation script to verify all components are working:
@@ -249,11 +275,14 @@ The Lemonade Stand Assistant consists of the following components:
 - **[Llama 3.2 3B Instruct](https://huggingface.co/RedHatAI/Llama-3.2-3B-Instruct-FP8-dynamic)**: Main language model for generating responses
 - **[IBM HAP Detector (Granite Guardian HAP 125M)](https://huggingface.co/ibm-granite/granite-guardian-hap-125m)**: Detects hate, abuse, and profanity
 - **[Prompt Injection Detector (DeBERTa v3 Base)](https://huggingface.co/protectai/deberta-v3-base-prompt-injection-v2)**: Identifies prompt injection attempts
-- **[Lingua Language Detector](https://github.com/pemistahl/lingua)**: Validates language compliance (English only)
+- **[Lingua Language Detector](https://github.com/pemistahl/lingua)**: Validates language compliance (configurable target language)
+
+**Translation (optional, for multilingual mode):**
+- **[TranslateGemma 4B](https://huggingface.co/Infomaniak-AI/vllm-translategemma-4b-it)**: Bidirectional translation between target language and English via vLLM
 
 **Orchestration:**
 - **Guardrails Orchestrator**: Coordinates detector models using FMS Orchestr8
-- **Lemonade Stand App**: FastAPI-based web application providing the user interface for customer interactions
+- **Lemonade Stand App**: FastAPI-based web application providing the user interface for customer interactions. All UI strings and error messages are loaded from a locale ConfigMap, enabling language switching without code changes.
 
 ### Models
 
@@ -262,7 +291,8 @@ The Lemonade Stand Assistant consists of the following components:
 | Main LLM | Llama 3.2 3B Instruct | 3B parameters | Conversational AI |
 | HAP Detection | Granite Guardian HAP | 125M parameters | Content safety |
 | Prompt Injection Guard | DeBERTa v3 Base | ~184M parameters | Security |
-| Language Detection | Lingua | Rule-based | Language validation |
+| Language Detection | Lingua | Rule-based | Language validation (configurable) |
+| Translation (optional) | TranslateGemma 4B | 4B parameters | Bidirectional translation |
 
 ### Deployment Configuration
 

@@ -82,7 +82,7 @@ spec:
     spec:
       containers:
         - name: lemonade-stand
-          image: quay.io/agiertli/lemon-fastapi-translate:1.0.12
+          image: quay.io/agiertli/lemon-fastapi-translate:1.0.13
           imagePullPolicy: Always
           ports:
             - containerPort: 8080
