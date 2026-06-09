@@ -35,18 +35,9 @@ helm upgrade lemonade-stand-assistant ./chart -n lemonade-stand-assistant \
 
 Before starting, confirm your target language is supported by both components:
 
-**Lingua detector** — supports these ISO 639-1 codes:
+**Lingua detector** — supports 63 languages. Full list of ISO 639-1 codes:
 
-| Code | Language | Code | Language |
-|------|----------|------|----------|
-| `sk` | Slovak | `pl` | Polish |
-| `cs` | Czech | `hu` | Hungarian |
-| `de` | German | `pt` | Portuguese |
-| `fr` | French | `nl` | Dutch |
-| `es` | Spanish | `ro` | Romanian |
-| `it` | Italian | `bg` | Bulgarian |
-| `hr` | Croatian | `sl` | Slovene |
-| `uk` | Ukrainian | `ru` | Russian |
+`af` Afrikaans, `ar` Arabic, `az` Azerbaijani, `be` Belarusian, `bg` Bulgarian, `bn` Bengali, `bs` Bosnian, `ca` Catalan, `cs` Czech, `cy` Welsh, `da` Danish, `de` German, `el` Greek, `es` Spanish, `et` Estonian, `eu` Basque, `fa` Persian, `fi` Finnish, `fr` French, `ga` Irish, `gu` Gujarati, `he` Hebrew, `hi` Hindi, `hr` Croatian, `hu` Hungarian, `hy` Armenian, `id` Indonesian, `is` Icelandic, `it` Italian, `ja` Japanese, `ka` Georgian, `kk` Kazakh, `ko` Korean, `lt` Lithuanian, `lv` Latvian, `mk` Macedonian, `mn` Mongolian, `mr` Marathi, `ms` Malay, `nb` Norwegian Bokmål, `nl` Dutch, `nn` Norwegian Nynorsk, `pl` Polish, `pt` Portuguese, `ro` Romanian, `ru` Russian, `sk` Slovak, `sl` Slovene, `so` Somali, `sq` Albanian, `sr` Serbian, `sv` Swedish, `sw` Swahili, `ta` Tamil, `te` Telugu, `th` Thai, `tl` Tagalog, `tr` Turkish, `uk` Ukrainian, `ur` Urdu, `vi` Vietnamese, `yo` Yoruba, `zh` Chinese, `zu` Zulu
 
 **TranslateGemma** — check the [model card](https://huggingface.co/Infomaniak-AI/vllm-translategemma-4b-it) for the full list of supported language pairs. The model must support `your_language ↔ English` translation.
 
@@ -146,7 +137,7 @@ To switch back to Slovak (default), simply remove the `-f ./chart/values-XX.yaml
 
 ## Architecture details
 
-- **Lingua detector** (`lingua-language-detector:2.0.0`): A single language-agnostic container image. The accepted language is configured via the `ACCEPTED_LANGUAGE` environment variable, which is set automatically from `language.code` in Helm values.
+- **Lingua detector** (`lingua-language-detector:2.1.0`): A single language-agnostic container image supporting 63 languages. The accepted language is configured via the `ACCEPTED_LANGUAGE` environment variable, which is set automatically from `language.code` in Helm values.
 - **TranslateGemma** (`vllm/vllm-openai:v0.14.1`): Uses the prompt format `<<<source>>>XX<<<target>>>en<<<text>>>...` where `XX` is the language code from `language.code`.
 - **FastAPI app** (`lemon-fastapi-translate:1.0.13`): Loads all user-facing strings from a ConfigMap-mounted JSON file at `/locale/locale.json`. The frontend fetches UI strings from the `/api/locale` endpoint on page load.
 - **Locale ConfigMap**: Rendered by Helm from the `language.messages` and `language.ui` values. Mounted as a volume into the app pod.

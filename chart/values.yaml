@@ -40,7 +40,7 @@ translateService:
 language:
   code: "sk"
   name: "slovensky"
-  linguaImage: "quay.io/agiertli/lingua-language-detector:2.0.0"
+  linguaImage: "quay.io/agiertli/lingua-language-detector:2.1.0"
 
   # User-facing messages (detector blocks, errors, etc.)
   messages:
